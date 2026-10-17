@@ -28,6 +28,9 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.jarvis.assist.R;
 import com.jarvis.assist.network.JarvisClient;
@@ -49,8 +52,8 @@ import okhttp3.Response;
 
 /**
  * VoiceOverlayActivity — Google-Assistant-style bottom sheet.
- * Streams Jarvis voice audio from Render backend instead of Android TTS.
- * Background keep-alive ping prevents Render cold starts.
+ * Uses backend /api/tts (Camb.ai via Render) for Jarvis voice audio.
+ * Sheet sits above nav bar — does NOT cover home/back buttons.
  */
 public class VoiceOverlayActivity extends AppCompatActivity {
 
@@ -64,9 +67,9 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     private SessionStore      mSession;
     private SpeechRecognizer  mRecognizer;
     private MediaPlayer       mMediaPlayer;
-    private final Handler     mHandler   = new Handler(Looper.getMainLooper());
-    private final ExecutorService mPool  = Executors.newCachedThreadPool();
-    private final OkHttpClient mHttp     = new OkHttpClient();
+    private final Handler     mHandler  = new Handler(Looper.getMainLooper());
+    private final ExecutorService mPool = Executors.newCachedThreadPool();
+    private final OkHttpClient mHttp    = new OkHttpClient();
 
     // Views
     private View      mRoot;
@@ -93,13 +96,17 @@ public class VoiceOverlayActivity extends AppCompatActivity {
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         );
 
+        // ── Make overlay sit ABOVE the nav bar, not behind it ──────────
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         setContentView(R.layout.activity_voice_overlay);
         mSession = SessionStore.get(this);
 
         bindViews();
+        applyNavBarInset();   // push sheet up so it clears nav buttons
         initPulse();
         setupDismissGestures();
-        warmUpRender(); // ping backend so it's ready
+        warmUpRender();
 
         mRoot.getViewTreeObserver().addOnGlobalLayoutListener(
                 new ViewTreeObserver.OnGlobalLayoutListener() {
@@ -111,7 +118,28 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Keep Render warm — fire a lightweight ping as soon as overlay opens
+    // Push sheet above navigation bar (home / back buttons)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void applyNavBarInset() {
+        // 32 dp base + navigation bar height so sheet never covers home/back buttons
+        float density     = getResources().getDisplayMetrics().density;
+        int   basePadding = Math.round(32 * density);
+
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(mSheet, (v, insets) -> {
+            int navBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            v.setPadding(
+                    v.getPaddingLeft(),
+                    v.getPaddingTop(),
+                    v.getPaddingRight(),
+                    basePadding + navBottom
+            );
+            return insets;
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Keep Render warm
     // ─────────────────────────────────────────────────────────────────────────
 
     private void warmUpRender() {
@@ -119,21 +147,15 @@ public class VoiceOverlayActivity extends AppCompatActivity {
         if (url == null || url.isEmpty()) return;
         mPool.execute(() -> {
             try {
-                Request req = new Request.Builder()
-                        .url(url + "/health")
-                        .get()
-                        .build();
+                Request req = new Request.Builder().url(url + "/health").get().build();
                 Response res = mHttp.newCall(req).execute();
                 if (res.body() != null) res.body().close();
-                Log.d(TAG, "Render warm-up ping sent");
-            } catch (Exception e) {
-                Log.d(TAG, "Warm-up ping failed (ok): " + e.getMessage());
-            }
+            } catch (Exception ignored) {}
         });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Bind
+    // Bind views
     // ─────────────────────────────────────────────────────────────────────────
 
     private void bindViews() {
@@ -305,8 +327,8 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Stream Jarvis voice audio from backend /api/speak
-    // Falls back to silence + auto-close if endpoint doesn't exist
+    // Stream Jarvis voice from /api/tts (Camb.ai via Render)
+    // Returns audio/flac bytes — MediaPlayer handles it natively
     // ─────────────────────────────────────────────────────────────────────────
 
     private void speakFromBackend(String text, String baseUrl) {
@@ -315,32 +337,34 @@ public class VoiceOverlayActivity extends AppCompatActivity {
 
         mPool.execute(() -> {
             try {
-                // POST to /api/speak — backend returns audio/mpeg bytes (ElevenLabs or similar)
-                String json = "{\"text\":\"" + text.replace("\"", "\\\"") + "\"}";
+                String json = "{\"text\":\"" + text.replace("\"", "\\\"").replace("\n", " ") + "\"}";
                 RequestBody body = RequestBody.create(
                         json, MediaType.parse("application/json; charset=utf-8"));
 
                 Request req = new Request.Builder()
-                        .url(baseUrl + "/api/speak")
+                        .url(baseUrl + "/api/tts")   // ← correct endpoint
                         .post(body)
                         .build();
 
                 Response resp = mHttp.newCall(req).execute();
 
                 if (!resp.isSuccessful() || resp.body() == null) {
-                    Log.w(TAG, "speak endpoint returned " + resp.code() + " — skipping audio");
-                    resp.close();
+                    Log.w(TAG, "/api/tts returned " + resp.code() + " — skipping audio");
+                    if (resp.body() != null) resp.body().close();
                     mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
                     return;
                 }
 
-                // Write audio bytes to temp file then play with MediaPlayer
+                String mime    = resp.header("Content-Type", "audio/flac");
+                String ext     = (mime != null && mime.contains("wav")) ? ".wav"
+                               : (mime != null && mime.contains("mp3")) ? ".mp3" : ".flac";
+
                 InputStream is  = resp.body().byteStream();
-                File tmpFile    = File.createTempFile("jarvis_audio", ".mp3", getCacheDir());
+                File tmpFile    = File.createTempFile("jarvis_tts", ext, getCacheDir());
                 tmpFile.deleteOnExit();
 
                 try (FileOutputStream fos = new FileOutputStream(tmpFile)) {
-                    byte[] buf = new byte[4096];
+                    byte[] buf = new byte[8192];
                     int    len;
                     while ((len = is.read(buf)) != -1) fos.write(buf, 0, len);
                 }
@@ -383,7 +407,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
             mMediaPlayer.prepareAsync();
 
         } catch (Exception e) {
-            Log.e(TAG, "playAudioFile error: " + e.getMessage());
+            Log.e(TAG, "playAudioFile: " + e.getMessage());
             mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
         }
     }
