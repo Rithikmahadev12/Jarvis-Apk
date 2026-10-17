@@ -6,6 +6,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
@@ -17,21 +19,19 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 /**
- * JarvisClient
+ * JarvisClient — all HTTP calls to the Jarvis backend.
  *
- * Handles all HTTP communication with the Jarvis backend.
- *
- * Key changes for real-account persistence:
- *   - /api/chat sends userName + userTitle from SessionStore (your real Jarvis identity)
- *   - fetchMemories() pulls /api/memory/:user before each chat so Jarvis
- *     remembers everything it knows about you across sessions
- *   - sessionId is the permanent one stored in SessionStore (never regenerated)
- *   - memories array is fetched fresh and injected into every /api/chat call
+ * Flow:
+ *   1. ping()          — verify URL is a live Jarvis backend
+ *   2. fetchProfiles() — get list of all real accounts on the server
+ *   3. fetchProfile()  — load one account's full data (title, role, etc.)
+ *   4. fetchMemories() — pull everything Jarvis remembers about this user
+ *   5. chat()          — send a voice message with full identity + memories injected
  */
 public class JarvisClient {
 
-    private static final String TAG         = "JarvisClient";
-    private static final MediaType JSON_TYPE = MediaType.get("application/json; charset=utf-8");
+    private static final String TAG       = "JarvisClient";
+    private static final MediaType JSON   = MediaType.get("application/json; charset=utf-8");
 
     private static final OkHttpClient HTTP = new OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -40,11 +40,43 @@ public class JarvisClient {
             .build();
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Data model for a Jarvis account returned by /api/profiles
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public static class JarvisProfile {
+        public final String name;
+        public final String title;
+        public final String role;  // "owner" or null
+        public JarvisProfile(String name, String title, String role) {
+            this.name  = name;
+            this.title = title != null ? title : "Sir";
+            this.role  = role;
+        }
+        public boolean isOwner() { return "owner".equals(role); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Callbacks
     // ─────────────────────────────────────────────────────────────────────────
 
+    public interface SimpleCallback {
+        void onSuccess();
+        void onError(String error);
+    }
+
     public interface ChatCallback {
         void onSuccess(String reply);
+        void onError(String error);
+    }
+
+    public interface ProfilesCallback {
+        void onSuccess(List<JarvisProfile> profiles);
+        void onError(String error);
+    }
+
+    public interface ProfileCallback {
+        void onSuccess(JarvisProfile profile);
+        void onNotFound();
         void onError(String error);
     }
 
@@ -53,56 +85,115 @@ public class JarvisClient {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Ping — used by setup screen to verify connection
+    // 1. ping — verify the URL is actually a Jarvis backend
     // ─────────────────────────────────────────────────────────────────────────
 
-    public static void ping(String baseUrl, ChatCallback cb) {
-        String url = baseUrl.replaceAll("/+$", "") + "/api/chat";
-        try {
-            JSONObject body = new JSONObject();
-            body.put("message",   "ping");
-            body.put("sessionId", "android_ping");
-            body.put("userName",  "Rithik");
-            body.put("userTitle", "Sir");
-
-            Request req = new Request.Builder()
-                    .url(url)
-                    .post(RequestBody.create(body.toString(), JSON_TYPE))
-                    .build();
-
-            HTTP.newCall(req).enqueue(new Callback() {
-                @Override public void onFailure(Call call, IOException e) {
-                    cb.onError(e.getMessage());
-                }
-                @Override public void onResponse(Call call, Response r) throws IOException {
-                    if (r.isSuccessful()) cb.onSuccess("ok");
-                    else cb.onError("HTTP " + r.code());
-                    r.close();
-                }
-            });
-        } catch (Exception e) {
-            cb.onError(e.getMessage());
-        }
+    public static void ping(String baseUrl, SimpleCallback cb) {
+        String url = clean(baseUrl) + "/api/profiles";
+        Request req = new Request.Builder().url(url).get().build();
+        HTTP.newCall(req).enqueue(new Callback() {
+            @Override public void onFailure(Call call, IOException e) {
+                cb.onError(e.getMessage());
+            }
+            @Override public void onResponse(Call call, Response r) throws IOException {
+                r.close();
+                if (r.isSuccessful()) cb.onSuccess();
+                else cb.onError("HTTP " + r.code());
+            }
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Fetch memories — pulls /api/memory/rithik before chat
-    // Jarvis stores everything it learns about you here (name prefs,
-    // habits, past context). Injecting them into /api/chat gives Jarvis
-    // full recall across every session.
+    // 2. fetchProfiles — GET /api/profiles → list of all accounts on the server
+    //    Used to populate the account picker screen.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public static void fetchProfiles(String baseUrl, ProfilesCallback cb) {
+        String url = clean(baseUrl) + "/api/profiles";
+        Request req = new Request.Builder().url(url).get().build();
+        HTTP.newCall(req).enqueue(new Callback() {
+            @Override public void onFailure(Call call, IOException e) {
+                cb.onError("Network error: " + e.getMessage());
+            }
+            @Override public void onResponse(Call call, Response r) throws IOException {
+                try {
+                    String body = r.body().string();
+                    r.close();
+                    if (!r.isSuccessful()) { cb.onError("Server error " + r.code()); return; }
+
+                    JSONObject parsed   = new JSONObject(body);
+                    JSONArray  arr      = parsed.optJSONArray("profiles");
+                    List<JarvisProfile> list = new ArrayList<>();
+
+                    if (arr != null) {
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject p = arr.getJSONObject(i);
+                            String name  = p.optString("name", "").trim();
+                            String title = p.optString("title", "Sir").trim();
+                            String role  = p.optString("role", "");
+                            if (!name.isEmpty()) {
+                                list.add(new JarvisProfile(name, title, role));
+                            }
+                        }
+                    }
+                    cb.onSuccess(list);
+                } catch (Exception e) {
+                    cb.onError("Parse error: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 3. fetchProfile — GET /api/profile/:name → full account data
+    //    Called after user picks their account to verify it exists and load
+    //    their title, role, etc.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public static void fetchProfile(String baseUrl, String userName, ProfileCallback cb) {
+        String url = clean(baseUrl) + "/api/profile/" + userName.toLowerCase().trim();
+        Request req = new Request.Builder().url(url).get().build();
+        HTTP.newCall(req).enqueue(new Callback() {
+            @Override public void onFailure(Call call, IOException e) {
+                cb.onError("Network error: " + e.getMessage());
+            }
+            @Override public void onResponse(Call call, Response r) throws IOException {
+                try {
+                    String body = r.body().string();
+                    r.close();
+                    if (!r.isSuccessful()) { cb.onError("Server error " + r.code()); return; }
+
+                    JSONObject parsed = new JSONObject(body);
+                    boolean found = parsed.optBoolean("found", false);
+                    if (!found) { cb.onNotFound(); return; }
+
+                    JSONObject profile = parsed.optJSONObject("profile");
+                    if (profile == null) { cb.onNotFound(); return; }
+
+                    String name  = profile.optString("name", userName).trim();
+                    String title = profile.optString("title", "Sir").trim();
+                    String role  = profile.optString("role", "");
+
+                    cb.onSuccess(new JarvisProfile(name, title, role));
+                } catch (Exception e) {
+                    cb.onError("Parse error: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 4. fetchMemories — GET /api/memory/:user
+    //    Pulls everything Jarvis remembers about this user and injects into chat.
     // ─────────────────────────────────────────────────────────────────────────
 
     public static void fetchMemories(String baseUrl, String userName, MemoryCallback cb) {
-        String url = baseUrl.replaceAll("/+$", "")
-                + "/api/memory/"
-                + userName.toLowerCase().trim();
-
+        String url = clean(baseUrl) + "/api/memory/" + userName.toLowerCase().trim();
         Request req = new Request.Builder().url(url).get().build();
-
         HTTP.newCall(req).enqueue(new Callback() {
             @Override public void onFailure(Call call, IOException e) {
-                Log.w(TAG, "Memory fetch failed: " + e.getMessage());
-                cb.onMemories(new JSONArray()); // non-fatal — continue without
+                Log.w(TAG, "Memory fetch failed (non-fatal): " + e.getMessage());
+                cb.onMemories(new JSONArray());
             }
             @Override public void onResponse(Call call, Response r) throws IOException {
                 try {
@@ -121,40 +212,35 @@ public class JarvisClient {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Chat — main call with full identity + memories injected
+    // 5. chat — POST /api/chat with full identity + memories
     // ─────────────────────────────────────────────────────────────────────────
 
     public static void chat(
-            String     baseUrl,
-            String     message,
-            String     sessionId,
-            String     userName,
-            String     userTitle,
-            JSONArray  memories,
+            String    baseUrl,
+            String    message,
+            String    sessionId,
+            String    userName,
+            String    userTitle,
+            JSONArray memories,
             ChatCallback cb
     ) {
-        String url = baseUrl.replaceAll("/+$", "") + "/api/chat";
+        String url = clean(baseUrl) + "/api/chat";
         try {
             JSONObject body = new JSONObject();
-            body.put("message",   message);
-            body.put("sessionId", sessionId);
-            body.put("userName",  userName);
-            body.put("userTitle", userTitle != null && !userTitle.isEmpty() ? userTitle : "Sir");
-
-            // Inject memories so Jarvis has full recall of who you are
+            body.put("message",    message);
+            body.put("sessionId",  sessionId);
+            body.put("userName",   userName);
+            body.put("userTitle",  userTitle != null && !userTitle.isEmpty() ? userTitle : "Sir");
+            body.put("moodContext", "voice");
             if (memories != null && memories.length() > 0) {
-                // Backend expects array of { fact, savedAt } objects
                 body.put("memories", memories);
             }
-
-            // Let Jarvis know this is a mobile voice client
-            body.put("moodContext",    "voice");
 
             Log.d(TAG, "→ /api/chat  user=" + userName + "  session=" + sessionId);
 
             Request req = new Request.Builder()
                     .url(url)
-                    .post(RequestBody.create(body.toString(), JSON_TYPE))
+                    .post(RequestBody.create(body.toString(), JSON))
                     .build();
 
             HTTP.newCall(req).enqueue(new Callback() {
@@ -165,10 +251,7 @@ public class JarvisClient {
                     try {
                         String raw = r.body().string();
                         r.close();
-                        if (!r.isSuccessful()) {
-                            cb.onError("Server error " + r.code() + ": " + raw);
-                            return;
-                        }
+                        if (!r.isSuccessful()) { cb.onError("Server error " + r.code() + ": " + raw); return; }
                         JSONObject resp  = new JSONObject(raw);
                         String     reply = resp.optString("reply",
                                 resp.optString("response",
@@ -182,5 +265,13 @@ public class JarvisClient {
         } catch (Exception e) {
             cb.onError("Request build error: " + e.getMessage());
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static String clean(String url) {
+        return url.trim().replaceAll("/+$", "");
     }
 }
