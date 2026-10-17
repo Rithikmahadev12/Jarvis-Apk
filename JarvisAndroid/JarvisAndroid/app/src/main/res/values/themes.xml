@@ -12,7 +12,11 @@
         <item name="android:navigationBarColor">#00000000</item>
     </style>
 
-    <!-- Overlay activity — fully translucent, no animation -->
+    <!--
+        Overlay theme — translucent window so only the bottom sheet shows.
+        backgroundDimEnabled false because we draw our own scrim view.
+        windowIsFloating false so it fills the screen width at the bottom.
+    -->
     <style name="Theme.JarvisOverlay" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
@@ -20,7 +24,14 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsFloating">false</item>
         <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@style/OverlayAnim</item>
         <item name="android:statusBarColor">#00000000</item>
         <item name="android:navigationBarColor">#00000000</item>
+    </style>
+
+    <!-- Slide up / slide down animation for the overlay -->
+    <style name="OverlayAnim">
+        <item name="android:windowEnterAnimation">@anim/slide_up</item>
+        <item name="android:windowExitAnimation">@anim/slide_down</item>
     </style>
 </resources>
