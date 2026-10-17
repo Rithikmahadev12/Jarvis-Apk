@@ -3,11 +3,13 @@
     Jarvis Voice Overlay — bottom sheet style, exactly like Google Assistant.
     Sits at the bottom of the screen, transparent above it, rounded top corners.
     Swipe down or tap outside to dismiss.
+    fitsSystemWindows + WindowInsetsCompat ensure the sheet clears the nav bar.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/overlay_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     android:background="@android:color/transparent">
 
     <!-- Dim scrim — tapping it dismisses the overlay -->
@@ -19,7 +21,7 @@
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- Bottom sheet card -->
+    <!-- Bottom sheet card — paddingBottom set dynamically from nav bar inset -->
     <LinearLayout
         android:id="@+id/sheet"
         android:layout_width="match_parent"
