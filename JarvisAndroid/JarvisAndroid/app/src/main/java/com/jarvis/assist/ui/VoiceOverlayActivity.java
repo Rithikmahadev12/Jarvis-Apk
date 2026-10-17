@@ -7,14 +7,14 @@ import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
-import android.speech.tts.TextToSpeech;
-import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -33,18 +33,24 @@ import com.jarvis.assist.R;
 import com.jarvis.assist.network.JarvisClient;
 import com.jarvis.assist.storage.SessionStore;
 
-import org.json.JSONArray;
-
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.MediaType;
+import okhttp3.Response;
 
 /**
  * VoiceOverlayActivity — Google-Assistant-style bottom sheet.
- *
- * Appears as a small panel at the bottom of the screen.
- * Everything above it is a semi-transparent scrim (tap to dismiss).
- * Slides up on open, slides down on close.
- * Swipe down the sheet or tap the scrim or ✕ to dismiss.
+ * Streams Jarvis voice audio from Render backend instead of Android TTS.
+ * Background keep-alive ping prevents Render cold starts.
  */
 public class VoiceOverlayActivity extends AppCompatActivity {
 
@@ -55,10 +61,12 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     private enum State { IDLE, LISTENING, THINKING, SPEAKING, DONE }
     private State mState = State.IDLE;
 
-    private SessionStore     mSession;
-    private SpeechRecognizer mRecognizer;
-    private TextToSpeech     mTTS;
-    private final Handler    mHandler = new Handler(Looper.getMainLooper());
+    private SessionStore      mSession;
+    private SpeechRecognizer  mRecognizer;
+    private MediaPlayer       mMediaPlayer;
+    private final Handler     mHandler   = new Handler(Looper.getMainLooper());
+    private final ExecutorService mPool  = Executors.newCachedThreadPool();
+    private final OkHttpClient mHttp     = new OkHttpClient();
 
     // Views
     private View      mRoot;
@@ -73,7 +81,6 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     private ImageView mJarvisIcon;
 
     private ObjectAnimator mPulseAnim;
-    private boolean        mTTSReady   = false;
     private boolean        mDismissing = false;
 
     @Override
@@ -91,8 +98,8 @@ public class VoiceOverlayActivity extends AppCompatActivity {
 
         bindViews();
         initPulse();
-        initTTS();
         setupDismissGestures();
+        warmUpRender(); // ping backend so it's ready
 
         mRoot.getViewTreeObserver().addOnGlobalLayoutListener(
                 new ViewTreeObserver.OnGlobalLayoutListener() {
@@ -101,6 +108,28 @@ public class VoiceOverlayActivity extends AppCompatActivity {
                         checkMicPermission();
                     }
                 });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Keep Render warm — fire a lightweight ping as soon as overlay opens
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void warmUpRender() {
+        String url = mSession.getJarvisUrl();
+        if (url == null || url.isEmpty()) return;
+        mPool.execute(() -> {
+            try {
+                Request req = new Request.Builder()
+                        .url(url + "/health")
+                        .get()
+                        .build();
+                Response res = mHttp.newCall(req).execute();
+                if (res.body() != null) res.body().close();
+                Log.d(TAG, "Render warm-up ping sent");
+            } catch (Exception e) {
+                Log.d(TAG, "Warm-up ping failed (ok): " + e.getMessage());
+            }
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -121,17 +150,13 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Dismiss gestures — scrim tap, close button, swipe down sheet
+    // Dismiss gestures
     // ─────────────────────────────────────────────────────────────────────────
 
     private void setupDismissGestures() {
-        // Tap scrim → dismiss
         mScrim.setOnClickListener(v -> dismissSheet());
-
-        // Close button → dismiss
         mBtnClose.setOnClickListener(v -> dismissSheet());
 
-        // Swipe down on the sheet → dismiss
         GestureDetector gd = new GestureDetector(this,
                 new GestureDetector.SimpleOnGestureListener() {
                     @Override
@@ -153,28 +178,6 @@ public class VoiceOverlayActivity extends AppCompatActivity {
         mPulseAnim.setRepeatMode(ValueAnimator.REVERSE);
         mPulseAnim.setRepeatCount(ValueAnimator.INFINITE);
         mPulseAnim.setInterpolator(new AccelerateDecelerateInterpolator());
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // TTS
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private void initTTS() {
-        mTTS = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
-                mTTS.setLanguage(Locale.US);
-                mTTSReady = true;
-                mTTS.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                    @Override public void onStart(String id) {}
-                    @Override public void onDone(String id) {
-                        mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, AUTO_CLOSE);
-                    }
-                    @Override public void onError(String id) {
-                        mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, AUTO_CLOSE);
-                    }
-                });
-            }
-        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -287,7 +290,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
                             setStatus("Jarvis");
                             mDivider.setVisibility(View.VISIBLE);
                             mJarvisText.setVisibility(View.VISIBLE);
-                            typewriterReveal(mJarvisText, reply, () -> speakReply(reply));
+                            typewriterReveal(mJarvisText, reply, () -> speakFromBackend(reply, url));
                         });
                     }
                     @Override public void onError(String error) {
@@ -302,29 +305,99 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // TTS speak
+    // Stream Jarvis voice audio from backend /api/speak
+    // Falls back to silence + auto-close if endpoint doesn't exist
     // ─────────────────────────────────────────────────────────────────────────
 
-    private void speakReply(String text) {
+    private void speakFromBackend(String text, String baseUrl) {
         setState(State.SPEAKING);
-        if (mTTSReady && mTTS != null) {
-            String ttsText = text.length() > 500 ? text.substring(0, 500) + "…" : text;
-            Bundle params = new Bundle();
-            params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "jarvis_reply");
-            mTTS.speak(ttsText, TextToSpeech.QUEUE_FLUSH, params, "jarvis_reply");
-        } else {
+        setStatus("Speaking…");
+
+        mPool.execute(() -> {
+            try {
+                // POST to /api/speak — backend returns audio/mpeg bytes (ElevenLabs or similar)
+                String json = "{\"text\":\"" + text.replace("\"", "\\\"") + "\"}";
+                RequestBody body = RequestBody.create(
+                        json, MediaType.parse("application/json; charset=utf-8"));
+
+                Request req = new Request.Builder()
+                        .url(baseUrl + "/api/speak")
+                        .post(body)
+                        .build();
+
+                Response resp = mHttp.newCall(req).execute();
+
+                if (!resp.isSuccessful() || resp.body() == null) {
+                    Log.w(TAG, "speak endpoint returned " + resp.code() + " — skipping audio");
+                    resp.close();
+                    mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
+                    return;
+                }
+
+                // Write audio bytes to temp file then play with MediaPlayer
+                InputStream is  = resp.body().byteStream();
+                File tmpFile    = File.createTempFile("jarvis_audio", ".mp3", getCacheDir());
+                tmpFile.deleteOnExit();
+
+                try (FileOutputStream fos = new FileOutputStream(tmpFile)) {
+                    byte[] buf = new byte[4096];
+                    int    len;
+                    while ((len = is.read(buf)) != -1) fos.write(buf, 0, len);
+                }
+                resp.body().close();
+
+                mHandler.post(() -> playAudioFile(tmpFile));
+
+            } catch (Exception e) {
+                Log.e(TAG, "speakFromBackend error: " + e.getMessage());
+                mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
+            }
+        });
+    }
+
+    private void playAudioFile(File file) {
+        try {
+            if (mMediaPlayer != null) { mMediaPlayer.release(); mMediaPlayer = null; }
+
+            mMediaPlayer = new MediaPlayer();
+            mMediaPlayer.setAudioAttributes(
+                    new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build());
+            mMediaPlayer.setDataSource(file.getAbsolutePath());
+            mMediaPlayer.setOnPreparedListener(MediaPlayer::start);
+            mMediaPlayer.setOnCompletionListener(mp -> {
+                mp.release();
+                mMediaPlayer = null;
+                file.delete();
+                mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
+            });
+            mMediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Log.e(TAG, "MediaPlayer error: " + what);
+                mp.release();
+                mMediaPlayer = null;
+                mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, AUTO_CLOSE);
+                return true;
+            });
+            mMediaPlayer.prepareAsync();
+
+        } catch (Exception e) {
+            Log.e(TAG, "playAudioFile error: " + e.getMessage());
             mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Dismiss — slide sheet down then finish
+    // Dismiss
     // ─────────────────────────────────────────────────────────────────────────
 
     private void dismissSheet() {
         if (mDismissing) return;
         mDismissing = true;
         setState(State.DONE);
+
+        if (mMediaPlayer != null) { mMediaPlayer.stop(); mMediaPlayer.release(); mMediaPlayer = null; }
 
         mSheet.animate()
                 .translationY(mSheet.getHeight())
@@ -376,9 +449,10 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (mRecognizer != null) { mRecognizer.destroy(); mRecognizer = null; }
-        if (mTTS != null)        { mTTS.stop(); mTTS.shutdown(); mTTS = null; }
-        if (mPulseAnim != null)  { mPulseAnim.cancel(); }
+        if (mRecognizer  != null) { mRecognizer.destroy(); mRecognizer = null; }
+        if (mMediaPlayer != null) { mMediaPlayer.release(); mMediaPlayer = null; }
+        if (mPulseAnim   != null) { mPulseAnim.cancel(); }
+        mPool.shutdownNow();
         mHandler.removeCallbacksAndMessages(null);
     }
 }
