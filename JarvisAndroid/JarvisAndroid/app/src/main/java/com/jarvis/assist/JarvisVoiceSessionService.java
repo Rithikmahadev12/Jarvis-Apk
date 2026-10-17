@@ -9,19 +9,14 @@ import android.service.voice.VoiceInteractionSessionService;
 /**
  * JarvisVoiceSessionService
  *
- * Android calls onCreateSession() on THIS class — VoiceInteractionSessionService —
- * not on VoiceInteractionService. This is the correct split:
- *
- *   VoiceInteractionService        → JarvisAssistService   (registered as android.service.voice.VoiceInteractionService)
- *   VoiceInteractionSessionService → JarvisVoiceSessionService (registered as sessionService in interaction_service.xml)
- *
- * onCreateSession() is a real, stable method on VoiceInteractionSessionService.
- * No illegal @Override. Compiles clean on API 26-34.
+ * The abstract method on VoiceInteractionSessionService at API 26-34
+ * is onNewSession(Bundle args) — NOT onCreateSession().
+ * onCreateSession() was a name used in older preview docs and is wrong here.
  */
 public class JarvisVoiceSessionService extends VoiceInteractionSessionService {
 
     @Override
-    public VoiceInteractionSession onCreateSession(Bundle args) {
+    public VoiceInteractionSession onNewSession(Bundle args) {
         return new JarvisVoiceSession(this, new Handler(Looper.getMainLooper()));
     }
 }
