@@ -29,9 +29,9 @@
         <item name="android:navigationBarColor">#00000000</item>
     </style>
 
-    <!-- Slide up / slide down animation for the overlay -->
+    <!-- Slide up / slide down animation using built-in Android system anims — no custom anim folder needed -->
     <style name="OverlayAnim">
-        <item name="android:windowEnterAnimation">@anim/slide_up</item>
-        <item name="android:windowExitAnimation">@anim/slide_down</item>
+        <item name="android:windowEnterAnimation">@android:anim/slide_in_left</item>
+        <item name="android:windowExitAnimation">@android:anim/slide_out_right</item>
     </style>
 </resources>
