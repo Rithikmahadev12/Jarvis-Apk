@@ -2,18 +2,10 @@ package com.jarvis.assist.network;
 
 import android.util.Log;
 
-import org.json.JSONException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
@@ -25,190 +17,170 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 /**
- * JarvisClient — fires POST /api/chat to Jarvis Render backend.
+ * JarvisClient
  *
- * Uses OkHttp with:
- *   - 30s connect / 90s read (Render cold start can be slow)
- *   - Automatic retry up to 2 times on network failure
- *   - Callback-based async so it never blocks the main thread
+ * Handles all HTTP communication with the Jarvis backend.
  *
- * Request body: { message, sessionId, userName, userTitle, userTimezone }
- * Response:     { reply: "..." }  OR  { error: "..." }
+ * Key changes for real-account persistence:
+ *   - /api/chat sends userName + userTitle from SessionStore (your real Jarvis identity)
+ *   - fetchMemories() pulls /api/memory/:user before each chat so Jarvis
+ *     remembers everything it knows about you across sessions
+ *   - sessionId is the permanent one stored in SessionStore (never regenerated)
+ *   - memories array is fetched fresh and injected into every /api/chat call
  */
 public class JarvisClient {
 
-    private static final String TAG          = "JarvisClient";
+    private static final String TAG         = "JarvisClient";
     private static final MediaType JSON_TYPE = MediaType.get("application/json; charset=utf-8");
-    private static final int MAX_RETRIES     = 2;
 
-    // Singleton OkHttpClient — shared across all calls
     private static final OkHttpClient HTTP = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(90, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60,    TimeUnit.SECONDS)
+            .writeTimeout(15,   TimeUnit.SECONDS)
             .build();
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Callbacks
+    // ─────────────────────────────────────────────────────────────────────────
 
     public interface ChatCallback {
         void onSuccess(String reply);
         void onError(String error);
     }
 
-    // ── Main send method ─────────────────────────────────────────────────────
-
-    public static void sendMessage(
-            String baseUrl,
-            String message,
-            String sessionId,
-            String userName,
-            String userTitle,
-            String timezone,
-            ChatCallback cb
-    ) {
-        sendWithRetry(baseUrl, message, sessionId, userName, userTitle, timezone, cb, 0);
+    public interface MemoryCallback {
+        void onMemories(JSONArray memories);
     }
 
-    private static void sendWithRetry(
-            String baseUrl,
-            String message,
-            String sessionId,
-            String userName,
-            String userTitle,
-            String timezone,
-            ChatCallback cb,
-            int attempt
-    ) {
-        String chatUrl = baseUrl.replaceAll("/+$", "") + "/api/chat";
-
-        JSONObject body = new JSONObject();
-        try {
-            body.put("message",      message);
-            body.put("sessionId",    sessionId);
-            body.put("userName",     userName);
-            body.put("userTitle",    userTitle);
-            body.put("userTimezone", timezone);
-        } catch (JSONException e) {
-            cb.onError("JSON build failed: " + e.getMessage());
-            return;
-        }
-
-        RequestBody reqBody = RequestBody.create(body.toString(), JSON_TYPE);
-        Request request = new Request.Builder()
-                .url(chatUrl)
-                .addHeader("Accept",       "application/json")
-                .addHeader("Content-Type", "application/json")
-                .post(reqBody)
-                .build();
-
-        HTTP.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                if (attempt < MAX_RETRIES) {
-                    Log.w(TAG, "Attempt " + attempt + " failed, retrying: " + e.getMessage());
-                    sendWithRetry(baseUrl, message, sessionId, userName, userTitle, timezone, cb, attempt + 1);
-                } else {
-                    Log.e(TAG, "All retries exhausted: " + e.getMessage());
-                    cb.onError("Network error: " + e.getMessage());
-                }
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                String rawBody = "";
-                try {
-                    rawBody = response.body() != null ? response.body().string() : "";
-                } catch (IOException e) {
-                    cb.onError("Failed to read response body");
-                    return;
-                }
-
-                if (!response.isSuccessful()) {
-                    // Try to extract Jarvis error field
-                    String errMsg = extractField(rawBody, "error");
-                    if (errMsg.isEmpty()) errMsg = "HTTP " + response.code();
-                    if (attempt < MAX_RETRIES && response.code() >= 500) {
-                        Log.w(TAG, "Server error " + response.code() + ", retrying...");
-                        sendWithRetry(baseUrl, message, sessionId, userName, userTitle, timezone, cb, attempt + 1);
-                    } else {
-                        cb.onError(errMsg);
-                    }
-                    return;
-                }
-
-                // Extract reply field
-                String reply = extractField(rawBody, "reply");
-                if (reply.isEmpty()) {
-                    // Fallback — maybe it's a plain string response
-                    reply = rawBody.trim();
-                }
-
-                if (reply.isEmpty()) {
-                    cb.onError("Empty response from Jarvis");
-                } else {
-                    cb.onSuccess(reply);
-                }
-            }
-        });
-    }
-
-    // ── Health check — pings the Render server to see if it's awake ──────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // Ping — used by setup screen to verify connection
+    // ─────────────────────────────────────────────────────────────────────────
 
     public static void ping(String baseUrl, ChatCallback cb) {
-        String pingUrl = baseUrl.replaceAll("/+$", "") + "/api/health";
-        // Many Render deployments just return 200 on GET /
-        // Try health first, fall back to root
-        Request req = new Request.Builder()
-                .url(pingUrl)
-                .get()
-                .build();
+        String url = baseUrl.replaceAll("/+$", "") + "/api/chat";
+        try {
+            JSONObject body = new JSONObject();
+            body.put("message",   "ping");
+            body.put("sessionId", "android_ping");
+            body.put("userName",  "Rithik");
+            body.put("userTitle", "Sir");
+
+            Request req = new Request.Builder()
+                    .url(url)
+                    .post(RequestBody.create(body.toString(), JSON_TYPE))
+                    .build();
+
+            HTTP.newCall(req).enqueue(new Callback() {
+                @Override public void onFailure(Call call, IOException e) {
+                    cb.onError(e.getMessage());
+                }
+                @Override public void onResponse(Call call, Response r) throws IOException {
+                    if (r.isSuccessful()) cb.onSuccess("ok");
+                    else cb.onError("HTTP " + r.code());
+                    r.close();
+                }
+            });
+        } catch (Exception e) {
+            cb.onError(e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Fetch memories — pulls /api/memory/rithik before chat
+    // Jarvis stores everything it learns about you here (name prefs,
+    // habits, past context). Injecting them into /api/chat gives Jarvis
+    // full recall across every session.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public static void fetchMemories(String baseUrl, String userName, MemoryCallback cb) {
+        String url = baseUrl.replaceAll("/+$", "")
+                + "/api/memory/"
+                + userName.toLowerCase().trim();
+
+        Request req = new Request.Builder().url(url).get().build();
 
         HTTP.newCall(req).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                // Try root URL
-                Request rootReq = new Request.Builder()
-                        .url(baseUrl.replaceAll("/+$", "") + "/")
-                        .get()
-                        .build();
-                HTTP.newCall(rootReq).enqueue(new Callback() {
-                    @Override public void onFailure(Call c, IOException ex) {
-                        cb.onError("Jarvis unreachable: " + ex.getMessage());
-                    }
-                    @Override public void onResponse(Call c, Response r) {
-                        if (r.isSuccessful() || r.code() == 404) {
-                            cb.onSuccess("pong");
-                        } else {
-                            cb.onError("HTTP " + r.code());
-                        }
-                    }
-                });
+            @Override public void onFailure(Call call, IOException e) {
+                Log.w(TAG, "Memory fetch failed: " + e.getMessage());
+                cb.onMemories(new JSONArray()); // non-fatal — continue without
             }
-
-            @Override
-            public void onResponse(Call call, Response response) {
-                if (response.isSuccessful()) {
-                    cb.onSuccess("pong");
-                } else {
-                    cb.onError("HTTP " + response.code());
+            @Override public void onResponse(Call call, Response r) throws IOException {
+                try {
+                    if (!r.isSuccessful()) { cb.onMemories(new JSONArray()); r.close(); return; }
+                    String body = r.body().string();
+                    r.close();
+                    JSONObject parsed = new JSONObject(body);
+                    JSONArray  mems   = parsed.optJSONArray("memories");
+                    cb.onMemories(mems != null ? mems : new JSONArray());
+                } catch (Exception e) {
+                    Log.w(TAG, "Memory parse error: " + e.getMessage());
+                    cb.onMemories(new JSONArray());
                 }
             }
         });
     }
 
-    // ── Utility: pull a string field from raw JSON without full parsing ───────
+    // ─────────────────────────────────────────────────────────────────────────
+    // Chat — main call with full identity + memories injected
+    // ─────────────────────────────────────────────────────────────────────────
 
-    private static String extractField(String json, String field) {
-        if (json == null || json.isEmpty()) return "";
+    public static void chat(
+            String     baseUrl,
+            String     message,
+            String     sessionId,
+            String     userName,
+            String     userTitle,
+            JSONArray  memories,
+            ChatCallback cb
+    ) {
+        String url = baseUrl.replaceAll("/+$", "") + "/api/chat";
         try {
-            JSONObject obj = new JSONObject(json);
-            return obj.optString(field, "");
-        } catch (JSONException e) {
-            // regex fallback for chunked/partial JSON
-            java.util.regex.Pattern p = java.util.regex.Pattern.compile(
-                    "\"" + field + "\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
-            java.util.regex.Matcher m = p.matcher(json);
-            if (m.find()) return m.group(1).replace("\\n", "\n").replace("\\\"", "\"");
-            return "";
+            JSONObject body = new JSONObject();
+            body.put("message",   message);
+            body.put("sessionId", sessionId);
+            body.put("userName",  userName);
+            body.put("userTitle", userTitle != null && !userTitle.isEmpty() ? userTitle : "Sir");
+
+            // Inject memories so Jarvis has full recall of who you are
+            if (memories != null && memories.length() > 0) {
+                // Backend expects array of { fact, savedAt } objects
+                body.put("memories", memories);
+            }
+
+            // Let Jarvis know this is a mobile voice client
+            body.put("moodContext",    "voice");
+
+            Log.d(TAG, "→ /api/chat  user=" + userName + "  session=" + sessionId);
+
+            Request req = new Request.Builder()
+                    .url(url)
+                    .post(RequestBody.create(body.toString(), JSON_TYPE))
+                    .build();
+
+            HTTP.newCall(req).enqueue(new Callback() {
+                @Override public void onFailure(Call call, IOException e) {
+                    cb.onError("Network error: " + e.getMessage());
+                }
+                @Override public void onResponse(Call call, Response r) throws IOException {
+                    try {
+                        String raw = r.body().string();
+                        r.close();
+                        if (!r.isSuccessful()) {
+                            cb.onError("Server error " + r.code() + ": " + raw);
+                            return;
+                        }
+                        JSONObject resp  = new JSONObject(raw);
+                        String     reply = resp.optString("reply",
+                                resp.optString("response",
+                                        resp.optString("message", "...")));
+                        cb.onSuccess(reply);
+                    } catch (Exception e) {
+                        cb.onError("Parse error: " + e.getMessage());
+                    }
+                }
+            });
+        } catch (Exception e) {
+            cb.onError("Request build error: " + e.getMessage());
         }
     }
 }
