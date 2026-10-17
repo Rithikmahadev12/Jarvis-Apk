@@ -1,109 +1,158 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Jarvis Voice Overlay — bottom sheet style, exactly like Google Assistant.
+    Sits at the bottom of the screen, transparent above it, rounded top corners.
+    Swipe down or tap outside to dismiss.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/overlay_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#E0000000"
-    android:fitsSystemWindows="false">
+    android:background="@android:color/transparent">
 
-    <!-- Pulse ring behind icon -->
+    <!-- Dim scrim — tapping it dismisses the overlay -->
     <View
-        android:id="@+id/pulse_ring"
-        android:layout_width="140dp"
-        android:layout_height="140dp"
-        android:layout_gravity="center"
-        android:layout_marginBottom="120dp"
-        android:background="@drawable/circle_pulse"
-        android:alpha="0.0"
-        android:visibility="invisible" />
-
-    <!-- Close button (top-right corner) -->
-    <TextView
-        android:id="@+id/btn_close"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|end"
-        android:layout_margin="16dp"
-        android:gravity="center"
-        android:text="✕"
-        android:textColor="#99FFFFFF"
-        android:textSize="20sp"
+        android:id="@+id/scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#99000000"
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- Center column -->
+    <!-- Bottom sheet card -->
     <LinearLayout
+        android:id="@+id/sheet"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
+        android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:gravity="center"
-        android:padding="32dp">
+        android:background="@drawable/sheet_bg"
+        android:paddingTop="12dp"
+        android:paddingBottom="32dp"
+        android:paddingLeft="24dp"
+        android:paddingRight="24dp"
+        android:elevation="16dp">
 
-        <!-- Jarvis icon / mic indicator -->
-        <ImageView
-            android:id="@+id/iv_jarvis_icon"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:src="@drawable/ic_jarvis"
-            android:contentDescription="Jarvis"
-            android:layout_marginBottom="8dp" />
-
-        <!-- Status label (Listening… / Thinking… / Jarvis) -->
-        <TextView
-            android:id="@+id/tv_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Initializing…"
-            android:textColor="#AAFFFFFF"
-            android:textSize="13sp"
-            android:letterSpacing="0.12"
-            android:layout_marginBottom="24dp" />
-
-        <!-- What the user said -->
-        <TextView
-            android:id="@+id/tv_user_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#CCFFFFFF"
-            android:textSize="18sp"
-            android:lineSpacingMultiplier="1.35"
-            android:gravity="center"
-            android:visibility="gone"
-            android:layout_marginBottom="20dp" />
-
-        <!-- Divider -->
+        <!-- Drag handle -->
         <View
             android:layout_width="40dp"
-            android:layout_height="1dp"
-            android:background="#44FFFFFF"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
             android:layout_marginBottom="20dp"
-            android:visibility="gone"
-            android:id="@+id/divider" />
+            android:background="#55FFFFFF"
+            android:backgroundTint="#55FFFFFF" />
+
+        <!-- Top row: Jarvis label + close button -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="JARVIS"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:letterSpacing="0.2" />
+
+            <TextView
+                android:id="@+id/btn_close"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="✕"
+                android:textColor="#66FFFFFF"
+                android:textSize="16sp"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+        <!-- Pulse ring + mic icon row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <!-- Animated mic orb -->
+            <FrameLayout
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_marginEnd="16dp">
+
+                <View
+                    android:id="@+id/pulse_ring"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:background="@drawable/circle_pulse"
+                    android:alpha="0.0" />
+
+                <ImageView
+                    android:id="@+id/iv_jarvis_icon"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:src="@drawable/ic_jarvis"
+                    android:contentDescription="Jarvis"
+                    android:scaleType="centerInside"
+                    android:padding="10dp" />
+
+            </FrameLayout>
+
+            <!-- Status + user speech text -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Listening…"
+                    android:textColor="#88FFFFFF"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:id="@+id/tv_user_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:textSize="17sp"
+                    android:lineSpacingMultiplier="1.3"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Divider — only visible after user speaks -->
+        <View
+            android:id="@+id/divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#22FFFFFF"
+            android:layout_marginBottom="14dp"
+            android:visibility="gone" />
 
         <!-- Jarvis reply (typewriter reveal) -->
         <TextView
             android:id="@+id/tv_jarvis_reply"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFFFF"
-            android:textSize="16sp"
+            android:textColor="#EEFFFFFF"
+            android:textSize="15sp"
             android:lineSpacingMultiplier="1.5"
-            android:gravity="center"
-            android:visibility="gone"
-            android:maxLines="12"
-            android:ellipsize="end" />
+            android:maxLines="6"
+            android:ellipsize="end"
+            android:visibility="gone" />
 
     </LinearLayout>
-
-    <!-- Swipe-down hint -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="24dp"
-        android:text="swipe down to dismiss"
-        android:textColor="#44FFFFFF"
-        android:textSize="11sp" />
 
 </FrameLayout>
