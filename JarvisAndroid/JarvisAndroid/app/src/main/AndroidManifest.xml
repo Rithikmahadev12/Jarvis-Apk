@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.jarvis.assist">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- ── Permissions ── -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -54,6 +53,12 @@
                 android:name="android.voice_interaction"
                 android:resource="@xml/interaction_service" />
         </service>
+
+        <!-- ── SESSION SERVICE — Android calls this to get a VoiceInteractionSession ── -->
+        <service
+            android:name=".JarvisVoiceSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
 
         <!-- ── JARVIS SESSION SERVICE (foreground — keeps mic warm) ── -->
         <service
