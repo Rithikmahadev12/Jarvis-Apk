@@ -101,12 +101,12 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     private void bindViews() {
-        mRoot        = findViewById(R.id.root_overlay);
+        mRoot        = findViewById(R.id.overlay_root);
         mPulseRing   = findViewById(R.id.pulse_ring);
         mCornerClose = findViewById(R.id.btn_close);
         mStatusLabel = findViewById(R.id.tv_status);
         mUserText    = findViewById(R.id.tv_user_text);
-        mJarvisText  = findViewById(R.id.tv_jarvis_text);
+        mJarvisText  = findViewById(R.id.tv_jarvis_reply);
         mJarvisIcon  = findViewById(R.id.iv_jarvis_icon);
     }
 
