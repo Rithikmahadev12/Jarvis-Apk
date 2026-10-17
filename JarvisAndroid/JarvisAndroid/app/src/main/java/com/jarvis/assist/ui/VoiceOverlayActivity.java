@@ -38,6 +38,14 @@ import org.json.JSONArray;
 import java.util.ArrayList;
 import java.util.Locale;
 
+/**
+ * VoiceOverlayActivity — Google-Assistant-style bottom sheet.
+ *
+ * Appears as a small panel at the bottom of the screen.
+ * Everything above it is a semi-transparent scrim (tap to dismiss).
+ * Slides up on open, slides down on close.
+ * Swipe down the sheet or tap the scrim or ✕ to dismiss.
+ */
 public class VoiceOverlayActivity extends AppCompatActivity {
 
     private static final String TAG        = "JarvisOverlay";
@@ -52,23 +60,28 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     private TextToSpeech     mTTS;
     private final Handler    mHandler = new Handler(Looper.getMainLooper());
 
+    // Views
     private View      mRoot;
+    private View      mScrim;
+    private View      mSheet;
     private View      mPulseRing;
-    private View      mCornerClose;
+    private View      mDivider;
+    private TextView  mBtnClose;
     private TextView  mStatusLabel;
     private TextView  mUserText;
     private TextView  mJarvisText;
     private ImageView mJarvisIcon;
 
     private ObjectAnimator mPulseAnim;
-    private boolean        mTTSReady = false;
+    private boolean        mTTSReady   = false;
+    private boolean        mDismissing = false;
 
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
 
         getWindow().addFlags(
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON   |
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         );
@@ -79,17 +92,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
         bindViews();
         initPulse();
         initTTS();
-
-        GestureDetector gd = new GestureDetector(this,
-                new GestureDetector.SimpleOnGestureListener() {
-                    @Override
-                    public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
-                        if (vy > 800) { finishWithFade(); return true; }
-                        return false;
-                    }
-                });
-        mRoot.setOnTouchListener((v, ev) -> { gd.onTouchEvent(ev); return true; });
-        mCornerClose.setOnClickListener(v -> finishWithFade());
+        setupDismissGestures();
 
         mRoot.getViewTreeObserver().addOnGlobalLayoutListener(
                 new ViewTreeObserver.OnGlobalLayoutListener() {
@@ -100,23 +103,61 @@ public class VoiceOverlayActivity extends AppCompatActivity {
                 });
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Bind
+    // ─────────────────────────────────────────────────────────────────────────
+
     private void bindViews() {
         mRoot        = findViewById(R.id.overlay_root);
+        mScrim       = findViewById(R.id.scrim);
+        mSheet       = findViewById(R.id.sheet);
         mPulseRing   = findViewById(R.id.pulse_ring);
-        mCornerClose = findViewById(R.id.btn_close);
+        mDivider     = findViewById(R.id.divider);
+        mBtnClose    = findViewById(R.id.btn_close);
         mStatusLabel = findViewById(R.id.tv_status);
         mUserText    = findViewById(R.id.tv_user_text);
         mJarvisText  = findViewById(R.id.tv_jarvis_reply);
         mJarvisIcon  = findViewById(R.id.iv_jarvis_icon);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Dismiss gestures — scrim tap, close button, swipe down sheet
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void setupDismissGestures() {
+        // Tap scrim → dismiss
+        mScrim.setOnClickListener(v -> dismissSheet());
+
+        // Close button → dismiss
+        mBtnClose.setOnClickListener(v -> dismissSheet());
+
+        // Swipe down on the sheet → dismiss
+        GestureDetector gd = new GestureDetector(this,
+                new GestureDetector.SimpleOnGestureListener() {
+                    @Override
+                    public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
+                        if (vy > 600) { dismissSheet(); return true; }
+                        return false;
+                    }
+                });
+        mSheet.setOnTouchListener((v, ev) -> { gd.onTouchEvent(ev); return false; });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Pulse animation
+    // ─────────────────────────────────────────────────────────────────────────
+
     private void initPulse() {
-        mPulseAnim = ObjectAnimator.ofFloat(mPulseRing, "alpha", 0.3f, 1f);
-        mPulseAnim.setDuration(800);
+        mPulseAnim = ObjectAnimator.ofFloat(mPulseRing, "alpha", 0.2f, 0.9f);
+        mPulseAnim.setDuration(700);
         mPulseAnim.setRepeatMode(ValueAnimator.REVERSE);
         mPulseAnim.setRepeatCount(ValueAnimator.INFINITE);
         mPulseAnim.setInterpolator(new AccelerateDecelerateInterpolator());
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // TTS
+    // ─────────────────────────────────────────────────────────────────────────
 
     private void initTTS() {
         mTTS = new TextToSpeech(this, status -> {
@@ -126,10 +167,10 @@ public class VoiceOverlayActivity extends AppCompatActivity {
                 mTTS.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                     @Override public void onStart(String id) {}
                     @Override public void onDone(String id) {
-                        mHandler.postDelayed(VoiceOverlayActivity.this::finishWithFade, AUTO_CLOSE);
+                        mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, AUTO_CLOSE);
                     }
                     @Override public void onError(String id) {
-                        mHandler.postDelayed(VoiceOverlayActivity.this::finishWithFade, AUTO_CLOSE);
+                        mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, AUTO_CLOSE);
                     }
                 });
             }
@@ -159,7 +200,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
             startListening();
         } else {
             setStatus("Mic permission denied");
-            mHandler.postDelayed(this::finishWithFade, 2000);
+            mHandler.postDelayed(this::dismissSheet, 2000);
         }
     }
 
@@ -170,6 +211,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     private void startListening() {
         setState(State.LISTENING);
         setStatus("Listening…");
+        mPulseRing.setVisibility(View.VISIBLE);
         if (mPulseAnim != null) mPulseAnim.start();
 
         mRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
@@ -185,29 +227,38 @@ public class VoiceOverlayActivity extends AppCompatActivity {
             @Override public void onBeginningOfSpeech() {}
             @Override public void onRmsChanged(float rms) {}
             @Override public void onBufferReceived(byte[] b) {}
-            @Override public void onEndOfSpeech() { setStatus("Processing…"); }
+            @Override public void onEndOfSpeech() { setStatus("Thinking…"); }
             @Override public void onPartialResults(Bundle partial) {
                 ArrayList<String> parts = partial.getStringArrayList(
                         SpeechRecognizer.RESULTS_RECOGNITION);
-                if (parts != null && !parts.isEmpty()) mUserText.setText(parts.get(0));
+                if (parts != null && !parts.isEmpty()) {
+                    runOnUiThread(() -> {
+                        mUserText.setText(parts.get(0));
+                        mUserText.setVisibility(View.VISIBLE);
+                    });
+                }
             }
             @Override public void onResults(Bundle results) {
                 if (mPulseAnim != null) mPulseAnim.cancel();
+                mPulseRing.setAlpha(0f);
                 ArrayList<String> matches = results.getStringArrayList(
                         SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches != null && !matches.isEmpty()) {
                     String heard = matches.get(0);
-                    mUserText.setText(heard);
+                    runOnUiThread(() -> {
+                        mUserText.setText(heard);
+                        mUserText.setVisibility(View.VISIBLE);
+                    });
                     sendToJarvis(heard);
                 } else {
                     setStatus("Didn't catch that");
-                    mHandler.postDelayed(VoiceOverlayActivity.this::finishWithFade, 2000);
+                    mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, 2000);
                 }
             }
             @Override public void onError(int err) {
                 if (mPulseAnim != null) mPulseAnim.cancel();
-                setStatus("Mic error — tap to retry");
-                mHandler.postDelayed(VoiceOverlayActivity.this::finishWithFade, 2000);
+                setStatus("Tap mic to retry");
+                mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, 2000);
             }
             @Override public void onEvent(int t, Bundle b) {}
         });
@@ -216,48 +267,38 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Jarvis API call — fetch memories first, then chat
+    // Jarvis API
     // ─────────────────────────────────────────────────────────────────────────
 
     private void sendToJarvis(String userMessage) {
         setState(State.THINKING);
-        setStatus("Jarvis is thinking…");
+        setStatus("Thinking…");
 
         String url       = mSession.getJarvisUrl();
         String sessionId = mSession.getSessionId();
         String userName  = mSession.getUserName();
         String userTitle = mSession.getUserTitle();
 
-        // Step 1 — fetch memories so Jarvis has full recall, then chat
-        JarvisClient.fetchMemories(url, userName, memories -> {
-            JarvisClient.chat(
-                    url,
-                    userMessage,
-                    sessionId,
-                    userName,
-                    userTitle,
-                    memories,
-                    new JarvisClient.ChatCallback() {
-                        @Override
-                        public void onSuccess(String reply) {
-                            runOnUiThread(() -> {
-                                mJarvisText.setText(reply);
-                                mJarvisText.setVisibility(View.VISIBLE);
-                                typewriterReveal(mJarvisText, reply,
-                                        () -> speakReply(reply));
-                            });
-                        }
-                        @Override
-                        public void onError(String error) {
-                            runOnUiThread(() -> {
-                                setStatus("Error: " + error);
-                                mHandler.postDelayed(
-                                        VoiceOverlayActivity.this::finishWithFade, 3000);
-                            });
-                        }
+        JarvisClient.fetchMemories(url, userName, memories ->
+            JarvisClient.chat(url, userMessage, sessionId, userName, userTitle, memories,
+                new JarvisClient.ChatCallback() {
+                    @Override public void onSuccess(String reply) {
+                        runOnUiThread(() -> {
+                            setStatus("Jarvis");
+                            mDivider.setVisibility(View.VISIBLE);
+                            mJarvisText.setVisibility(View.VISIBLE);
+                            typewriterReveal(mJarvisText, reply, () -> speakReply(reply));
+                        });
                     }
-            );
-        });
+                    @Override public void onError(String error) {
+                        runOnUiThread(() -> {
+                            setStatus("Error — try again");
+                            mHandler.postDelayed(
+                                    VoiceOverlayActivity.this::dismissSheet, 3000);
+                        });
+                    }
+                })
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -266,19 +307,44 @@ public class VoiceOverlayActivity extends AppCompatActivity {
 
     private void speakReply(String text) {
         setState(State.SPEAKING);
-        setStatus("Jarvis");
         if (mTTSReady && mTTS != null) {
             String ttsText = text.length() > 500 ? text.substring(0, 500) + "…" : text;
             Bundle params = new Bundle();
             params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "jarvis_reply");
             mTTS.speak(ttsText, TextToSpeech.QUEUE_FLUSH, params, "jarvis_reply");
         } else {
-            mHandler.postDelayed(this::finishWithFade, AUTO_CLOSE);
+            mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // State + UI helpers
+    // Dismiss — slide sheet down then finish
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void dismissSheet() {
+        if (mDismissing) return;
+        mDismissing = true;
+        setState(State.DONE);
+
+        mSheet.animate()
+                .translationY(mSheet.getHeight())
+                .alpha(0f)
+                .setDuration(220)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override public void onAnimationEnd(Animator a) {
+                        mScrim.animate().alpha(0f).setDuration(150)
+                                .setListener(new AnimatorListenerAdapter() {
+                                    @Override public void onAnimationEnd(Animator a2) {
+                                        finish();
+                                        overridePendingTransition(0, 0);
+                                    }
+                                });
+                    }
+                });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
     private void setState(State s) { mState = s; }
@@ -294,23 +360,13 @@ public class VoiceOverlayActivity extends AppCompatActivity {
             @Override public void run() {
                 if (i[0] <= text.length()) {
                     tv.setText(text.substring(0, i[0]++));
-                    mHandler.postDelayed(this, 18);
+                    mHandler.postDelayed(this, 16);
                 } else if (onDone != null) {
                     onDone.run();
                 }
             }
         };
         mHandler.post(ticker);
-    }
-
-    private void finishWithFade() {
-        setState(State.DONE);
-        mRoot.animate()
-                .alpha(0f)
-                .setDuration(300)
-                .setListener(new AnimatorListenerAdapter() {
-                    @Override public void onAnimationEnd(Animator a) { finish(); }
-                });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
