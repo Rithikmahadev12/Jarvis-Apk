@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  AndroidManifest.xml — FULL REPLACEMENT
+  Adds PhoneControlService (Accessibility Service) to the existing manifest.
+  Everything else is unchanged from the working build.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- ── Permissions ── -->
@@ -74,6 +79,28 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- ── PHONE CONTROL — Accessibility Service ── -->
+        <!--
+            This lets Jarvis navigate your phone's UI on voice command.
+            After installing the APK, go to:
+            Settings → Accessibility → Installed apps → Jarvis → enable "Phone Control"
+
+            Android will warn "this app can read your screen" — that's expected.
+            Jarvis only reads the UI when you give it a navigation command.
+        -->
+        <service
+            android:name=".PhoneControlService"
+            android:exported="true"
+            android:label="Jarvis Phone Control"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
 
     </application>
 
