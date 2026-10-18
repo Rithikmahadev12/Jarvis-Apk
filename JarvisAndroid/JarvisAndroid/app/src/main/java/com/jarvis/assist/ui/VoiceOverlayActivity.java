@@ -40,7 +40,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
@@ -54,25 +56,19 @@ import okhttp3.Response;
 /**
  * VoiceOverlayActivity — Google-Assistant-style bottom sheet.
  *
- * FIX 1: Overlay no longer covers nav bar.
- *   - Removed fitsSystemWindows from root FrameLayout in XML.
- *   - applyNavBarInset() uses WindowInsetsCompat on the SHEET only,
- *     adding nav bar height to paddingBottom so the sheet lifts above buttons.
- *   - WindowCompat.setDecorFitsSystemWindows(false) lets us draw edge-to-edge
- *     while the inset listener positions the sheet correctly.
+ * FIX 1 — Overlay no longer covers nav bar.
+ *   fitsSystemWindows removed from root layout XML. applyNavBarInset()
+ *   listens on mSheet only via ViewCompat + requestApplyInsets().
  *
- * FIX 2: Speed — two strategies.
- *   - warmUpRender() fires immediately on create (existing) but now runs
- *     a /api/chat ping with a tiny "." message to warm the Groq/LLM chain,
- *     not just the /health endpoint, so the model is hot by talk-time.
- *   - typewriterReveal() speed doubled (8ms tick vs 16ms) so reply appears faster.
+ * FIX 2 — Speed.
+ *   warmUpRender() fires a silent /api/chat ping so the LLM is hot.
+ *   Typewriter runs at 8 ms instead of 16 ms.
  *
- * FIX 4: Jarvis commands from voice.
- *   - After getting a reply, handleCommandAction() inspects the action field
- *     returned by the backend and dispatches UI intent (open wallet screen, etc.).
- *   - detectLocalCommand() does client-side keyword matching for "wallet address",
- *     "my wallet", "solana" so common commands always reach the backend with a
- *     command-shaped message, regardless of STT phrasing.
+ * FIX 4 — All Jarvis commands work from voice.
+ *   normaliseCommand() maps every loose STT phrase to the canonical
+ *   text that server.js's regex routes and Groq tool-call descriptions
+ *   already recognise. Covers every tool in hermes-engine.js + every
+ *   HARD_COMMANDS entry in server.js.
  */
 public class VoiceOverlayActivity extends AppCompatActivity {
 
@@ -80,15 +76,228 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     private static final int    PERM_MIC   = 101;
     private static final int    AUTO_CLOSE = 3500;
 
-    // ── Command detection patterns ──────────────────────────────────────────
-    // Client-side fast-path: normalise common voice commands before sending to
-    // the backend so they always hit the right server.js route.
-    private static final Pattern CMD_WALLET_ADDR  = Pattern.compile(
-            "(?i)\\b(show|what'?s?|give me|tell me|my)\\s+(my\\s+)?(wallet|solana)\\s*(address|addr|addy)?\\b");
-    private static final Pattern CMD_WALLET_BAL   = Pattern.compile(
-            "(?i)\\b(wallet\\s+balance|how much\\s+(sol|solana|money)|check\\s+(wallet|balance|sol))\\b");
-    private static final Pattern CMD_WALLET_NEW   = Pattern.compile(
-            "(?i)\\b(generate|create|make)\\s+(a\\s+)?(new\\s+)?(wallet|solana\\s+wallet)\\b");
+    // ═══════════════════════════════════════════════════════════════════════
+    // COMMAND NORMALISER
+    // Each entry: Pattern → canonical phrase the backend already recognises.
+    // Order matters — more specific patterns first so they don't get swallowed
+    // by broader ones below them. LinkedHashMap preserves insertion order.
+    // ═══════════════════════════════════════════════════════════════════════
+    private static final LinkedHashMap<Pattern, String> CMD_MAP = new LinkedHashMap<>();
+    static {
+        // ── WALLET ──────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(show|what.s|give me|tell me|my).{0,10}(wallet|solana).{0,10}(address|addr|addy)?"),
+                "show me my wallet address");
+        CMD_MAP.put(pat("(wallet balance|how much sol|check (wallet|balance|sol)|my balance)"),
+                "check my wallet balance");
+        CMD_MAP.put(pat("(generate|create|make).{0,10}(new.{0,5})?(wallet|solana wallet)"),
+                "generate a new solana wallet");
+        CMD_MAP.put(pat("(send|transfer).{0,20}(sol|solana|crypto|coin)"),
+                "send crypto");
+        CMD_MAP.put(pat("(private key|secret key|wallet key)"),
+                "show me my wallet private key");
+        CMD_MAP.put(pat("(refresh|update|new).{0,10}owner wallet"),
+                "refresh owner wallet");
+
+        // ── WEATHER ─────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(weather|forecast|temperature|how.s the weather|is it (hot|cold|raining|sunny)|what.s it like outside)"),
+                "what is the weather");
+
+        // ── TIMER / REMINDER ─────────────────────────────────────────────────
+        CMD_MAP.put(pat("set.{0,10}timer"),
+                "set a timer");
+        CMD_MAP.put(pat("(remind me|set.{0,10}reminder|reminder for)"),
+                "set a reminder");
+        CMD_MAP.put(pat("cancel.{0,10}(timer|reminder|alarm)"),
+                "cancel reminder");
+
+        // ── MUSIC ───────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(play|put on|queue).{0,40}(music|song|artist|album|playlist|track|beats?)"),
+                "play music");
+        CMD_MAP.put(pat("(stop|pause).{0,10}(music|song|playing|audio)"),
+                "stop music");
+        CMD_MAP.put(pat("(next|skip).{0,10}(song|track)"),
+                "skip song");
+        CMD_MAP.put(pat("(spotify|switch.{0,10}platform|change.{0,10}music)"),
+                "change music platform");
+
+        // ── EMAIL ────────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(check|read|open|show).{0,15}(email|inbox|gmail|mail)"),
+                "check my email");
+        CMD_MAP.put(pat("(read|open).{0,10}(first|that|the).{0,10}(email|message|one)"),
+                "read the first email");
+        CMD_MAP.put(pat("create.{0,15}(agent email|burner email|temp email|inbox)"),
+                "create an agent email");
+        CMD_MAP.put(pat("check.{0,10}agent email"),
+                "check agent email");
+
+        // ── CALENDAR ─────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(check|show|what.s on|my).{0,15}(calendar|schedule|agenda|events|appointments?)"),
+                "check my calendar");
+
+        // ── NEWS ─────────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(world news|news dashboard|open.{0,10}news|show.{0,10}news|latest headlines|top headlines|what.s happening|catch me up on the news|what.s going on in the world)"),
+                "show me the news");
+        CMD_MAP.put(pat("news widget"),
+                "news widget");
+
+        // ── CAMERA ───────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(hide|close|turn off|disable|exit).{0,10}camera"),
+                "hide camera");
+        CMD_MAP.put(pat("(show|open|turn on|enable|activate|pull up).{0,10}camera"),
+                "show camera");
+        CMD_MAP.put(pat("switch camera|camera \\d|change camera|use camera"),
+                "switch camera");
+        CMD_MAP.put(pat("(read|what.s on|analyze|scan).{0,10}screen"),
+                "read my screen");
+
+        // ── RECORDING ────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(start|begin).{0,15}record(ing)?"),
+                "start recording");
+        CMD_MAP.put(pat("(stop|end|finish).{0,15}record(ing)?"),
+                "stop recording");
+        CMD_MAP.put(pat("(clip|save).{0,15}last.{0,15}(seconds?|secs?)"),
+                "clip last 30 seconds");
+
+        // ── SMART HOME ───────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(smart home|home panel|home control|open home|show home)"),
+                "open home control panel");
+        CMD_MAP.put(pat("(turn on|turn off|switch on|switch off|dim|brighten).{0,30}(lights?|plug|lamp|fan|thermostat|device)"),
+                "control home lights");
+        CMD_MAP.put(pat("(scan home|scan network|devices on network)"),
+                "scan home network");
+        CMD_MAP.put(pat("(enable|turn on|activate).{0,10}home talk"),
+                "enable home talk");
+        CMD_MAP.put(pat("(disable|turn off|deactivate).{0,10}home talk"),
+                "disable home talk");
+
+        // ── MUTE / UNMUTE ────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(unmute|start talking|speak again)"),
+                "unmute");
+        CMD_MAP.put(pat("(mute|stop talking|be quiet|silence jarvis)"),
+                "mute");
+
+        // ── SECURITY ─────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(scan|check).{0,20}(virus|malware|threats?|hacker|infected|security)"),
+                "scan my computer for threats");
+        CMD_MAP.put(pat("(neutralize|remove|kill).{0,15}(threat|virus|malware)"),
+                "neutralize threat");
+
+        // ── PC / SANDBOX ─────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(close|shut down|power down|kill).{0,10}all.{0,10}(pcs?|computers?|sandboxes?)"),
+                "close all your pcs");
+        CMD_MAP.put(pat("(close|shut down|power down|end).{0,15}(your |the |my )?(pc|computer|desktop|sandbox)"),
+                "close your pc");
+        CMD_MAP.put(pat("(show|open|pull up|let me see).{0,15}(your )?(pc|computer|desktop|sandbox)"),
+                "show pc");
+        CMD_MAP.put(pat("(check|how much).{0,20}(disk|storage|space|drive|hard drive)"),
+                "check disk space");
+        CMD_MAP.put(pat("run.{0,30}(on your computer|in the sandbox|in sandbox|on your pc|in your vm)"),
+                "run in sandbox");
+        CMD_MAP.put(pat("(run|execute|terminal).{0,30}command"),
+                "run computer command");
+        CMD_MAP.put(pat("(open|launch).{0,30}(vs ?code|chrome|firefox|notepad|excel|spotify|teams|app|application|file|folder)"),
+                "open on computer");
+        CMD_MAP.put(pat("type (this|it|that)"),
+                "type text");
+
+        // ── RESEARCH / LOOKUP ─────────────────────────────────────────────────
+        CMD_MAP.put(pat("(look up|background check|pull everything on|osint|intel on|find info on)"),
+                "look up");
+        CMD_MAP.put(pat("(research|open research|pull up research|find.{0,20}ways to (earn|make money)|how can you earn)"),
+                "find ways to earn");
+
+        // ── BOARDS ────────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("make.{0,10}(me.{0,5})?a board.{0,20}(on|about|for|of)"),
+                "make a board");
+        CMD_MAP.put(pat("(pull up|show|open|bring up).{0,10}board"),
+                "show board");
+        CMD_MAP.put(pat("(list|what).{0,10}boards"),
+                "list boards");
+        CMD_MAP.put(pat("(delete|forget|remove).{0,10}board"),
+                "forget board");
+
+        // ── MEMORY ────────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(remember that|memorize|save that|note that|i want you to remember)"),
+                "remember that");
+        CMD_MAP.put(pat("(forget|delete memory|clear memory|stop remembering|erase that)"),
+                "forget that");
+
+        // ── BUILD / HOLOGRAM / WIREFRAME ──────────────────────────────────────
+        CMD_MAP.put(pat("(blueprint|drafting table|cad mode|design table|let.s design|sketch out|draft something)"),
+                "open blueprint mode");
+        CMD_MAP.put(pat("(show me a (3d|hologram)|holographic|3d model|3d scan)"),
+                "show me a hologram");
+        CMD_MAP.put(pat("wireframe"),
+                "show wireframe");
+
+        // ── HUD ───────────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(show hud|pull up hud|open hud|solve|calculate|annotate screen)"),
+                "show hud");
+        CMD_MAP.put(pat("(hide hud|close hud|dismiss hud|hud off)"),
+                "hide hud");
+
+        // ── TEAMS / CALLS ─────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(call|ring|dial|video call|voice call).{1,40}on teams"),
+                "call on teams");
+        CMD_MAP.put(pat("(message|text|dm).{0,30}on teams"),
+                "message on teams");
+        CMD_MAP.put(pat("join.{0,20}teams meeting"),
+                "join teams meeting");
+        CMD_MAP.put(pat("(call|ring|dial|book|schedule).{1,30}(appointment|business)"),
+                "call business appointment");
+
+        // ── BRIEFING / DEBRIEF ────────────────────────────────────────────────
+        CMD_MAP.put(pat("(daily brief|brief me|morning briefing|today.s briefing|my briefing)"),
+                "daily briefing");
+        CMD_MAP.put(pat("(end of day|evening debrief|wrap up my day|debrief me|how did today go)"),
+                "end of day debrief");
+
+        // ── FOCUS MODE ────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(i.m back|focus mode off|stop focus|end focus|resurfacing|coming up for air)"),
+                "focus mode off");
+        CMD_MAP.put(pat("(heads down|focus mode on|going dark|deep work mode|start focus)"),
+                "focus mode on");
+
+        // ── SYSTEM ────────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(system status|diagnostics|all systems|health check|are you ok)"),
+                "system status");
+        CMD_MAP.put(pat("(log out|logout|sign out|goodbye|shut down jarvis|close session)"),
+                "log out");
+
+        // ── EARNING ───────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(earn status|how.s earning|how much have you earned|earning update)"),
+                "earn status");
+        CMD_MAP.put(pat("(improve earning|earn more|earn better)"),
+                "improve earning");
+        CMD_MAP.put(pat("(scan github|github bounties|find bounties)"),
+                "scan github bounties");
+
+        // ── INSTAGRAM ─────────────────────────────────────────────────────────
+        CMD_MAP.put(pat("(connect|link|set up|track|follow|add).{0,15}instagram"),
+                "connect instagram");
+    }
+
+    /** Build a case-insensitive Pattern from a loose regex fragment. */
+    private static Pattern pat(String re) {
+        return Pattern.compile("(?i)\\b(?:" + re + ")\\b");
+    }
+
+    /**
+     * Translate loose STT output → canonical phrase the backend routes recognise.
+     * Returns the original string unchanged when no pattern fires.
+     */
+    private String normaliseCommand(String raw) {
+        String lower = raw.toLowerCase(Locale.ROOT);
+        for (Map.Entry<Pattern, String> entry : CMD_MAP.entrySet()) {
+            if (entry.getKey().matcher(lower).find()) {
+                Log.d(TAG, "CMD normalised: \"" + raw + "\" → \"" + entry.getValue() + "\"");
+                return entry.getValue();
+            }
+        }
+        return raw;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     private enum State { IDLE, LISTENING, THINKING, SPEAKING, DONE }
     private State mState = State.IDLE;
@@ -100,7 +309,6 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     private final ExecutorService mPool = Executors.newCachedThreadPool();
     private final OkHttpClient mHttp    = new OkHttpClient();
 
-    // Views
     private View      mRoot;
     private View      mScrim;
     private View      mSheet;
@@ -115,6 +323,10 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     private ObjectAnimator mPulseAnim;
     private boolean        mDismissing = false;
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Lifecycle
+    // ─────────────────────────────────────────────────────────────────────────
+
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -125,7 +337,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         );
 
-        // FIX 1: Draw edge-to-edge; inset listener on the SHEET handles nav bar.
+        // FIX 1: edge-to-edge; sheet listens for its own inset.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
         setContentView(R.layout.activity_voice_overlay);
@@ -147,18 +359,15 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // FIX 1 — Push sheet above nav bar (home/back buttons)
-    // Key change: listener is on mSheet only (not the root), and we do NOT set
-    // fitsSystemWindows on the root layout, so the inset doesn't double-apply.
+    // FIX 1 — Nav bar inset: push sheet above home/back buttons
     // ─────────────────────────────────────────────────────────────────────────
 
     private void applyNavBarInset() {
         float density     = getResources().getDisplayMetrics().density;
-        int   basePadding = Math.round(24 * density); // 24dp base clearance
+        int   basePadding = Math.round(24 * density);
 
         ViewCompat.setOnApplyWindowInsetsListener(mSheet, (v, insets) -> {
             int navBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
-            // Only update bottom padding; leave the rest untouched.
             v.setPadding(
                     v.getPaddingLeft(),
                     v.getPaddingTop(),
@@ -167,14 +376,11 @@ public class VoiceOverlayActivity extends AppCompatActivity {
             );
             return insets;
         });
-
-        // Request insets to be dispatched to the sheet right now.
         ViewCompat.requestApplyInsets(mSheet);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // FIX 2 — Speed: warm up the full LLM chain, not just /health.
-    // We fire a tiny silent chat call so the model is hot before the user speaks.
+    // FIX 2 — Warm up the LLM pipeline before the user speaks
     // ─────────────────────────────────────────────────────────────────────────
 
     private void warmUpRender() {
@@ -185,63 +391,25 @@ public class VoiceOverlayActivity extends AppCompatActivity {
         if (url == null || url.isEmpty()) return;
 
         mPool.execute(() -> {
+            // 1. Wake the Render container.
             try {
-                // First: hit /health so Render wakes the container.
                 Request hReq = new Request.Builder().url(url + "/health").get().build();
                 try (Response hRes = mHttp.newCall(hReq).execute()) {
                     if (hRes.body() != null) hRes.body().close();
-                } catch (Exception ignored) {}
-
-                // Second: fire a silent /api/chat to warm the LLM pipeline.
-                // Reply is discarded — this just loads the model into memory.
-                JarvisClient.chat(url, ".", sessionId, userName, userTitle, null,
-                        new JarvisClient.ChatCallback() {
-                            @Override public void onSuccess(String r) { /* warm-up only */ }
-                            @Override public void onError(String e)   { /* non-fatal     */ }
-                        });
+                }
             } catch (Exception ignored) {}
+
+            // 2. Prime the LLM chain with a silent throwaway message.
+            JarvisClient.chat(url, ".", sessionId, userName, userTitle, null,
+                    new JarvisClient.ChatCallback() {
+                        @Override public void onSuccess(String r) { /* warm-up only */ }
+                        @Override public void onError(String e)   { /* non-fatal     */ }
+                    });
         });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // FIX 4 — Normalise command phrasing before it leaves the device.
-    // The backend's server.js routes wallet/solana commands by regex on the
-    // exact message text. This translates loose STT output into the canonical
-    // form the backend expects, so "show me my crypto wallet address" reliably
-    // hits the get_wallet_address route.
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private String normaliseCommand(String raw) {
-        if (CMD_WALLET_ADDR.matcher(raw).find())  return "show me my wallet address";
-        if (CMD_WALLET_BAL.matcher(raw).find())   return "what is my wallet balance";
-        if (CMD_WALLET_NEW.matcher(raw).find())   return "generate a new wallet";
-        return raw;
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // FIX 4 — Handle action codes returned by the backend.
-    // server.js returns { reply, action, meta } — we use action to decide
-    // whether to open an activity, show a special screen, etc.
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private void handleCommandAction(String action, String meta) {
-        if (action == null) return;
-        switch (action) {
-            case "CODE_REVEAL":
-            case "WALLET_BALANCE":
-                // Show meta data in the reply area (already done via typewriterReveal).
-                // In a future version: launch a full-screen WalletActivity.
-                break;
-            case "OPEN_HOME":
-                // Future: launch HomeControlActivity
-                break;
-            default:
-                break;
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Bind views
+    // View binding
     // ─────────────────────────────────────────────────────────────────────────
 
     private void bindViews() {
@@ -258,7 +426,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Dismiss gestures
+    // Gesture dismiss
     // ─────────────────────────────────────────────────────────────────────────
 
     private void setupDismissGestures() {
@@ -277,7 +445,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Pulse animation
+    // Pulse ring
     // ─────────────────────────────────────────────────────────────────────────
 
     private void initPulse() {
@@ -289,7 +457,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Permission
+    // Mic permission
     // ─────────────────────────────────────────────────────────────────────────
 
     private void checkMicPermission() {
@@ -338,7 +506,8 @@ public class VoiceOverlayActivity extends AppCompatActivity {
             @Override public void onBeginningOfSpeech() {}
             @Override public void onRmsChanged(float rms) {}
             @Override public void onBufferReceived(byte[] b) {}
-            @Override public void onEndOfSpeech() { setStatus("Thinking…"); }
+            @Override public void onEndOfSpeech()            { setStatus("Thinking…"); }
+
             @Override public void onPartialResults(Bundle partial) {
                 ArrayList<String> parts = partial.getStringArrayList(
                         SpeechRecognizer.RESULTS_RECOGNITION);
@@ -349,17 +518,18 @@ public class VoiceOverlayActivity extends AppCompatActivity {
                     });
                 }
             }
+
             @Override public void onResults(Bundle results) {
                 if (mPulseAnim != null) mPulseAnim.cancel();
                 mPulseRing.setAlpha(0f);
                 ArrayList<String> matches = results.getStringArrayList(
                         SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches != null && !matches.isEmpty()) {
-                    String heard = matches.get(0);
-                    // FIX 4: normalise command phrasing before sending to backend.
+                    String heard  = matches.get(0);
+                    // FIX 4: normalise before sending; display the original.
                     String toSend = normaliseCommand(heard);
                     runOnUiThread(() -> {
-                        mUserText.setText(heard); // show original to user
+                        mUserText.setText(heard);
                         mUserText.setVisibility(View.VISIBLE);
                     });
                     sendToJarvis(toSend);
@@ -368,11 +538,13 @@ public class VoiceOverlayActivity extends AppCompatActivity {
                     mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, 2000);
                 }
             }
+
             @Override public void onError(int err) {
                 if (mPulseAnim != null) mPulseAnim.cancel();
                 setStatus("Tap mic to retry");
                 mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, 2000);
             }
+
             @Override public void onEvent(int t, Bundle b) {}
         });
 
@@ -380,7 +552,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Jarvis API
+    // Send to Jarvis backend
     // ─────────────────────────────────────────────────────────────────────────
 
     private void sendToJarvis(final String userMessage) {
@@ -396,12 +568,11 @@ public class VoiceOverlayActivity extends AppCompatActivity {
             JarvisClient.chat(url, userMessage, sessionId, userName, userTitle, memories,
                 new JarvisClient.ChatCallback() {
                     @Override public void onSuccess(String reply) {
-                        // FIX 4: also pass action back so handleCommandAction can react.
                         runOnUiThread(() -> {
                             setStatus("Jarvis");
                             mDivider.setVisibility(View.VISIBLE);
                             mJarvisText.setVisibility(View.VISIBLE);
-                            // FIX 2: doubled typewriter speed (8ms tick).
+                            // FIX 2: 8 ms tick = 2× faster typewriter.
                             typewriterReveal(mJarvisText, reply,
                                     () -> speakFromBackend(reply, url));
                         });
@@ -418,7 +589,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Stream Jarvis voice from /api/tts
+    // TTS via /api/tts
     // ─────────────────────────────────────────────────────────────────────────
 
     private void speakFromBackend(String text, String baseUrl) {
@@ -427,43 +598,38 @@ public class VoiceOverlayActivity extends AppCompatActivity {
 
         mPool.execute(() -> {
             try {
-                String json = "{\"text\":\"" + text.replace("\"", "\\\"").replace("\n", " ") + "\"}";
+                String json = "{\"text\":\"" + text.replace("\"", "\\\"")
+                        .replace("\n", " ") + "\"}";
                 RequestBody body = RequestBody.create(
                         json, MediaType.parse("application/json; charset=utf-8"));
-
                 Request req = new Request.Builder()
                         .url(baseUrl + "/api/tts")
                         .post(body)
                         .build();
 
                 Response resp = mHttp.newCall(req).execute();
-
                 if (!resp.isSuccessful() || resp.body() == null) {
-                    Log.w(TAG, "/api/tts returned " + resp.code() + " — skipping audio");
                     if (resp.body() != null) resp.body().close();
                     mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
                     return;
                 }
 
-                String mime    = resp.header("Content-Type", "audio/flac");
-                String ext     = (mime != null && mime.contains("wav")) ? ".wav"
-                               : (mime != null && mime.contains("mp3")) ? ".mp3" : ".flac";
+                String mime = resp.header("Content-Type", "audio/flac");
+                String ext  = (mime != null && mime.contains("wav")) ? ".wav"
+                            : (mime != null && mime.contains("mp3")) ? ".mp3" : ".flac";
 
-                InputStream is  = resp.body().byteStream();
-                File tmpFile    = File.createTempFile("jarvis_tts", ext, getCacheDir());
+                File tmpFile = File.createTempFile("jarvis_tts", ext, getCacheDir());
                 tmpFile.deleteOnExit();
-
-                try (FileOutputStream fos = new FileOutputStream(tmpFile)) {
-                    byte[] buf = new byte[8192];
-                    int    len;
+                try (InputStream is = resp.body().byteStream();
+                     FileOutputStream fos = new FileOutputStream(tmpFile)) {
+                    byte[] buf = new byte[8192]; int len;
                     while ((len = is.read(buf)) != -1) fos.write(buf, 0, len);
                 }
                 resp.body().close();
-
                 mHandler.post(() -> playAudioFile(tmpFile));
 
             } catch (Exception e) {
-                Log.e(TAG, "speakFromBackend error: " + e.getMessage());
+                Log.e(TAG, "speakFromBackend: " + e.getMessage());
                 mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
             }
         });
@@ -472,30 +638,23 @@ public class VoiceOverlayActivity extends AppCompatActivity {
     private void playAudioFile(File file) {
         try {
             if (mMediaPlayer != null) { mMediaPlayer.release(); mMediaPlayer = null; }
-
             mMediaPlayer = new MediaPlayer();
-            mMediaPlayer.setAudioAttributes(
-                    new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ASSISTANT)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                            .build());
+            mMediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build());
             mMediaPlayer.setDataSource(file.getAbsolutePath());
             mMediaPlayer.setOnPreparedListener(MediaPlayer::start);
             mMediaPlayer.setOnCompletionListener(mp -> {
-                mp.release();
-                mMediaPlayer = null;
-                file.delete();
+                mp.release(); mMediaPlayer = null; file.delete();
                 mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
             });
             mMediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                Log.e(TAG, "MediaPlayer error: " + what);
-                mp.release();
-                mMediaPlayer = null;
+                mp.release(); mMediaPlayer = null;
                 mHandler.postDelayed(VoiceOverlayActivity.this::dismissSheet, AUTO_CLOSE);
                 return true;
             });
             mMediaPlayer.prepareAsync();
-
         } catch (Exception e) {
             Log.e(TAG, "playAudioFile: " + e.getMessage());
             mHandler.postDelayed(this::dismissSheet, AUTO_CLOSE);
@@ -510,7 +669,6 @@ public class VoiceOverlayActivity extends AppCompatActivity {
         if (mDismissing) return;
         mDismissing = true;
         setState(State.DONE);
-
         if (mMediaPlayer != null) { mMediaPlayer.stop(); mMediaPlayer.release(); mMediaPlayer = null; }
 
         mSheet.animate()
@@ -540,7 +698,7 @@ public class VoiceOverlayActivity extends AppCompatActivity {
         runOnUiThread(() -> { if (mStatusLabel != null) mStatusLabel.setText(msg); });
     }
 
-    // FIX 2: 8ms tick instead of 16ms — twice as fast typewriter effect.
+    // FIX 2: 8 ms tick.
     private void typewriterReveal(TextView tv, String text, Runnable onDone) {
         tv.setText("");
         final int[] i = {0};
