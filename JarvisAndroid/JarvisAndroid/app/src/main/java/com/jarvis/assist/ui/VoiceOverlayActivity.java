@@ -32,6 +32,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.jarvis.assist.PhoneControlService;
 import com.jarvis.assist.R;
 import com.jarvis.assist.network.JarvisClient;
 import com.jarvis.assist.storage.SessionStore;
@@ -275,6 +276,35 @@ public class VoiceOverlayActivity extends AppCompatActivity {
         // ── INSTAGRAM ─────────────────────────────────────────────────────────
         CMD_MAP.put(pat("(connect|link|set up|track|follow|add).{0,15}instagram"),
                 "connect instagram");
+    }
+
+    // ── PHONE CONTROL: patterns that mean "do something ON MY PHONE UI" ──────
+    // Matched BEFORE CMD_MAP so app-navigation commands never get routed as
+    // normal Jarvis text. If PhoneControlService isn't enabled these fall back
+    // to a normal Jarvis chat message so the user gets a helpful reply instead
+    // of silence.
+    private static final Pattern PHONE_CTRL_PAT = Pattern.compile(
+        "(?i)\\b(?:" +
+        // "go on Instagram", "open TikTok", "pull up YouTube"
+        "(go on|open|launch|pull up|switch to|jump on|get on)" +
+        ".{0,25}" +
+        "(instagram|youtube|tiktok|spotify|chrome|maps|google maps|whatsapp|telegram|gmail|settings|" +
+        "twitter|reddit|snapchat|netflix|amazon|doordash|uber|lyft|messages|contacts|camera|files|clock|calculator|play store)" +
+        "|" +
+        // "search for X on Instagram", "look for chicken recipe on YouTube"
+        "(search for|search|look for|find|browse|watch|scroll through|go look for)" +
+        ".{0,40}" +
+        "(on|in|using|via|through)" +
+        ".{0,15}" +
+        "(instagram|youtube|tiktok|spotify|chrome|twitter|reddit|netflix|amazon|maps|whatsapp)" +
+        "|" +
+        // explicit phone navigation verbs with no app needed
+        "(go back on (my )?phone|scroll down on (my )?phone|press (back|home) on (my )?phone)" +
+        ")\\b"
+    );
+
+    private boolean isPhoneControlCommand(String raw) {
+        return PHONE_CTRL_PAT.matcher(raw).find();
     }
 
     /** Build a case-insensitive Pattern from a loose regex fragment. */
@@ -526,12 +556,22 @@ public class VoiceOverlayActivity extends AppCompatActivity {
                         SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches != null && !matches.isEmpty()) {
                     String heard  = matches.get(0);
-                    // FIX 4: normalise before sending; display the original.
-                    String toSend = normaliseCommand(heard);
                     runOnUiThread(() -> {
                         mUserText.setText(heard);
                         mUserText.setVisibility(View.VISIBLE);
                     });
+
+                    // ── PHONE CONTROL PATH ────────────────────────────────────
+                    // If this looks like a phone-navigation command AND the
+                    // accessibility service is running, route it through
+                    // PhoneControlService instead of the normal chat API.
+                    if (isPhoneControlCommand(heard) && PhoneControlService.getInstance() != null) {
+                        sendToPhoneControl(heard);
+                        return;
+                    }
+
+                    // ── NORMAL PATH ───────────────────────────────────────────
+                    String toSend = normaliseCommand(heard);
                     sendToJarvis(toSend);
                 } else {
                     setStatus("Didn't catch that");
@@ -549,6 +589,114 @@ public class VoiceOverlayActivity extends AppCompatActivity {
         });
 
         mRecognizer.startListening(intent);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phone Control — get a plan from the backend, execute it on device
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void sendToPhoneControl(final String command) {
+        setState(State.THINKING);
+        setStatus("Planning…");
+
+        String url       = mSession.getJarvisUrl();
+        String sessionId = mSession.getSessionId();
+        String userName  = mSession.getUserName();
+        String userTitle = mSession.getUserTitle();
+        if (url == null || url.isEmpty()) {
+            setStatus("No Jarvis URL set");
+            mHandler.postDelayed(this::dismissSheet, 2500);
+            return;
+        }
+
+        mPool.execute(() -> {
+            try {
+                // POST to /api/phone-control/plan
+                okhttp3.OkHttpClient http = new okhttp3.OkHttpClient.Builder()
+                        .callTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                        .build();
+
+                org.json.JSONObject bodyJson = new org.json.JSONObject();
+                bodyJson.put("command",   command);
+                bodyJson.put("sessionId", sessionId);
+                bodyJson.put("userName",  userName);
+                bodyJson.put("userTitle", userTitle);
+
+                okhttp3.Request req = new okhttp3.Request.Builder()
+                        .url(url + "/api/phone-control/plan")
+                        .post(okhttp3.RequestBody.create(
+                                bodyJson.toString(),
+                                okhttp3.MediaType.parse("application/json")))
+                        .build();
+
+                try (okhttp3.Response resp = http.newCall(req).execute()) {
+                    if (!resp.isSuccessful() || resp.body() == null) {
+                        // Backend not yet updated — fall back to normal chat
+                        runOnUiThread(() -> sendToJarvis(command));
+                        return;
+                    }
+
+                    final String planJson = resp.body().string();
+
+                    // Execute the plan on this device via PhoneControlService
+                    PhoneControlService svc = PhoneControlService.getInstance();
+                    if (svc == null) {
+                        // Accessibility service not enabled — tell user
+                        runOnUiThread(() -> {
+                            setStatus("Enable Accessibility Service");
+                            typewriterReveal(mJarvisText,
+                                "I need Accessibility permission to control your phone. " +
+                                "Go to Settings → Accessibility → Jarvis and enable it.",
+                                () -> mHandler.postDelayed(this::dismissSheet, 5000));
+                            mDivider.setVisibility(View.VISIBLE);
+                            mJarvisText.setVisibility(View.VISIBLE);
+                        });
+                        return;
+                    }
+
+                    runOnUiThread(() -> setStatus("Executing…"));
+
+                    svc.executePlan(planJson, url, new PhoneControlService.ExecutionCallback() {
+                        @Override
+                        public void onStepStart(int index, int total, String description) {
+                            runOnUiThread(() ->
+                                setStatus("Step " + index + "/" + total + ": " + description));
+                        }
+
+                        @Override
+                        public void onSuccess(String summary) {
+                            String reply = "Done, " + (userTitle != null ? userTitle : "boss") +
+                                           ". " + summary + " — complete.";
+                            runOnUiThread(() -> {
+                                setStatus("Jarvis");
+                                mDivider.setVisibility(View.VISIBLE);
+                                mJarvisText.setVisibility(View.VISIBLE);
+                                typewriterReveal(mJarvisText, reply,
+                                    () -> speakFromBackend(reply, url));
+                            });
+                        }
+
+                        @Override
+                        public void onFailure(String step, String reason) {
+                            String reply = "Ran into trouble at " + step + ", " +
+                                           (userTitle != null ? userTitle : "boss") + ". " + reason;
+                            runOnUiThread(() -> {
+                                setStatus("Jarvis");
+                                mDivider.setVisibility(View.VISIBLE);
+                                mJarvisText.setVisibility(View.VISIBLE);
+                                typewriterReveal(mJarvisText, reply,
+                                    () -> speakFromBackend(reply, url));
+                            });
+                        }
+                    });
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "sendToPhoneControl: " + e.getMessage());
+                // Any exception — fall back to normal Jarvis chat
+                runOnUiThread(() -> sendToJarvis(command));
+            }
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
