@@ -69,6 +69,17 @@ public class JarvisClient {
         void onError(String error);
     }
 
+    /**
+     * Extended callback that fires when the backend returns a phone-control
+     * plan instead of (or alongside) a spoken reply.
+     * VoiceOverlayActivity implements this to intercept PHONE_CONTROL_PLAN
+     * and hand the steps straight to PhoneControlService.
+     */
+    public interface ChatCallbackFull extends ChatCallback {
+        /** Called ONLY when action == "PHONE_CONTROL_PLAN"; raw plan JSON string. */
+        void onPhoneControlPlan(String reply, String planJson);
+    }
+
     public interface ProfilesCallback {
         void onSuccess(List<JarvisProfile> profiles);
         void onError(String error);
@@ -232,6 +243,7 @@ public class JarvisClient {
             body.put("userName",   userName);
             body.put("userTitle",  userTitle != null && !userTitle.isEmpty() ? userTitle : "Sir");
             body.put("moodContext", "voice");
+            body.put("source",     "android");   // ← tells Render to route phone-control back to us
             if (memories != null && memories.length() > 0) {
                 body.put("memories", memories);
             }
@@ -252,10 +264,28 @@ public class JarvisClient {
                         String raw = r.body().string();
                         r.close();
                         if (!r.isSuccessful()) { cb.onError("Server error " + r.code() + ": " + raw); return; }
-                        JSONObject resp  = new JSONObject(raw);
-                        String     reply = resp.optString("reply",
+                        JSONObject resp   = new JSONObject(raw);
+                        String     reply  = resp.optString("reply",
                                 resp.optString("response",
                                         resp.optString("message", "...")));
+                        String     action = resp.optString("action", "");
+
+                        // ── Phone-control plan: Render saw source:"android" +
+                        //    a phone-control intent and returned the accessibility
+                        //    step plan inline.  If caller implements ChatCallbackFull
+                        //    we hand it off; otherwise fall through to spoken reply.
+                        if ("PHONE_CONTROL_PLAN".equals(action) && cb instanceof ChatCallbackFull) {
+                            try {
+                                JSONObject meta     = resp.optJSONObject("meta");
+                                JSONObject planObj  = meta != null ? meta.optJSONObject("plan") : null;
+                                String     planJson = planObj != null ? planObj.toString() : "{}";
+                                ((ChatCallbackFull) cb).onPhoneControlPlan(reply, planJson);
+                            } catch (Exception pe) {
+                                cb.onSuccess(reply); // graceful fallback
+                            }
+                            return;
+                        }
+
                         cb.onSuccess(reply);
                     } catch (Exception e) {
                         cb.onError("Parse error: " + e.getMessage());
