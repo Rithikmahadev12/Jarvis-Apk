@@ -298,6 +298,46 @@ public class JarvisClient {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // 6. fetchWallet — GET /api/wallet/:name
+    //    Expects: { address: string, balance: number, usdValue: number }
+    //    or:      { error: string } / 404 → onNotConfigured
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public interface WalletCallback {
+        void onSuccess(String address, double solBalance, double usdValue);
+        void onNotConfigured();
+        void onError(String error);
+    }
+
+    public static void fetchWallet(String baseUrl, String name, WalletCallback cb) {
+        if (name == null || name.isEmpty()) { cb.onNotConfigured(); return; }
+        String url = clean(baseUrl) + "/api/wallet/" + name.trim();
+        Request req = new Request.Builder().url(url).get().build();
+        HTTP.newCall(req).enqueue(new Callback() {
+            @Override public void onFailure(Call call, IOException e) {
+                cb.onError(e.getMessage());
+            }
+            @Override public void onResponse(Call call, Response r) throws IOException {
+                try {
+                    String raw = r.body().string();
+                    r.close();
+                    if (r.code() == 404) { cb.onNotConfigured(); return; }
+                    if (!r.isSuccessful()) { cb.onError("HTTP " + r.code()); return; }
+                    JSONObject j = new JSONObject(raw);
+                    if (j.has("error")) { cb.onNotConfigured(); return; }
+                    String addr   = j.optString("address", "");
+                    double bal    = j.optDouble("balance", 0.0);
+                    double usd    = j.optDouble("usdValue", 0.0);
+                    if (addr.isEmpty()) { cb.onNotConfigured(); return; }
+                    cb.onSuccess(addr, bal, usd);
+                } catch (Exception e) {
+                    cb.onError("Parse error: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
