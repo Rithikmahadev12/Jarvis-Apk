@@ -1,69 +1,106 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+    Jarvis Main Activity — Redesigned UI
+    Three screens: URL Setup → Account Picker → Dashboard
+
+    Dashboard features:
+      • Header bar with JARVIS wordmark + status dot + avatar
+      • Horizontal scrollable "quick action" card tray
+      • Vertical scrollable content cards (Memories, Vault, Session)
+      • Bottom action bar with mic trigger + settings
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0D0D0D"
-    android:fillViewport="true">
+    android:background="#080810">
 
-    <FrameLayout
+    <!-- ══════════════════════════════════════════════════════════════
+         SCREEN 1 — URL SETUP
+         ══════════════════════════════════════════════════════════════ -->
+    <ScrollView
+        android:id="@+id/layout_setup"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:visibility="gone">
 
-        <!-- ══ SCREEN 1: URL SETUP (first ever launch only) ═════════════ -->
         <LinearLayout
-            android:id="@+id/layout_setup"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="32dp"
-            android:gravity="center_horizontal"
-            android:visibility="gone">
+            android:paddingLeft="32dp"
+            android:paddingRight="32dp"
+            android:paddingBottom="48dp"
+            android:gravity="center_horizontal">
+
+            <!-- Top glow orb -->
+            <View
+                android:layout_width="180dp"
+                android:layout_height="180dp"
+                android:layout_marginTop="80dp"
+                android:layout_marginBottom="0dp"
+                android:background="@drawable/glow_orb"
+                android:layout_gravity="center_horizontal" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="JARVIS"
                 android:textColor="#FFFFFF"
-                android:textSize="34sp"
-                android:letterSpacing="0.25"
-                android:layout_marginTop="64dp"
-                android:layout_marginBottom="4dp" />
+                android:textSize="38sp"
+                android:letterSpacing="0.35"
+                android:fontFamily="sans-serif-light"
+                android:layout_marginTop="-20dp"
+                android:layout_marginBottom="6dp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Connect once. Stay connected."
+                android:text="Connect your server to begin."
                 android:textColor="#66FFFFFF"
                 android:textSize="13sp"
-                android:layout_marginBottom="56dp" />
+                android:layout_marginBottom="52dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="SERVER URL"
+                android:textColor="#44FFFFFF"
+                android:textSize="10sp"
+                android:letterSpacing="0.18"
+                android:layout_marginBottom="8dp" />
 
             <EditText
                 android:id="@+id/et_jarvis_url"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Jarvis URL"
+                android:layout_height="52dp"
+                android:hint="https://your-jarvis.onrender.com"
                 android:inputType="textUri"
                 android:textColor="#FFFFFF"
-                android:textColorHint="#55FFFFFF"
+                android:textColorHint="#44FFFFFF"
                 android:background="@drawable/input_bg"
-                android:padding="14dp"
-                android:layout_marginBottom="24dp" />
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
+                android:textSize="14sp"
+                android:layout_marginBottom="12dp" />
 
             <TextView
                 android:id="@+id/tv_url_error"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#FF6B6B"
-                android:textSize="13sp"
+                android:textSize="12sp"
+                android:lineSpacingMultiplier="1.4"
                 android:layout_marginBottom="16dp"
                 android:visibility="gone" />
 
             <ProgressBar
                 android:id="@+id/progress_url"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
                 android:layout_marginBottom="16dp"
-                android:visibility="gone" />
+                android:visibility="gone"
+                android:indeterminateTint="#FFFFFF" />
 
             <Button
                 android:id="@+id/btn_connect_url"
@@ -72,72 +109,111 @@
                 android:text="Connect"
                 android:textColor="#000000"
                 android:backgroundTint="#FFFFFF"
-                android:textSize="15sp" />
+                android:textSize="14sp"
+                android:letterSpacing="0.06"
+                android:layout_marginTop="4dp" />
 
         </LinearLayout>
+    </ScrollView>
 
-        <!-- ══ SCREEN 2: ACCOUNT PICKER ════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════════════════════════
+         SCREEN 2 — ACCOUNT PICKER
+         ══════════════════════════════════════════════════════════════ -->
+    <ScrollView
+        android:id="@+id/layout_account_picker"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:visibility="gone">
+
         <LinearLayout
-            android:id="@+id/layout_account_picker"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="32dp"
-            android:gravity="center_horizontal"
-            android:visibility="gone">
+            android:paddingLeft="28dp"
+            android:paddingRight="28dp"
+            android:paddingBottom="48dp"
+            android:gravity="center_horizontal">
+
+            <View
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_marginTop="72dp"
+                android:layout_marginBottom="0dp"
+                android:background="@drawable/glow_orb_small"
+                android:layout_gravity="center_horizontal" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="JARVIS"
                 android:textColor="#FFFFFF"
-                android:textSize="34sp"
-                android:letterSpacing="0.25"
-                android:layout_marginTop="48dp"
+                android:textSize="32sp"
+                android:letterSpacing="0.35"
+                android:fontFamily="sans-serif-light"
+                android:layout_marginTop="-8dp"
                 android:layout_marginBottom="4dp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Who are you?"
-                android:textColor="#66FFFFFF"
+                android:text="Who's there?"
+                android:textColor="#55FFFFFF"
                 android:textSize="13sp"
-                android:layout_marginBottom="40dp" />
+                android:layout_marginBottom="36dp" />
 
-            <!-- Accounts load here dynamically -->
+            <!-- Dynamic account cards go here -->
             <LinearLayout
                 android:id="@+id/layout_accounts_list"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:layout_marginBottom="24dp" />
-
-            <!-- Divider -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="#22FFFFFF"
                 android:layout_marginBottom="20dp" />
 
-            <!-- Manual name fallback -->
+            <ProgressBar
+                android:id="@+id/progress_picker"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone"
+                android:indeterminateTint="#FFFFFF" />
+
+            <!-- Divider -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="20dp">
+                <View android:layout_width="0dp" android:layout_height="1dp"
+                    android:layout_weight="1" android:background="#1EFFFFFF" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="  or  " android:textColor="#33FFFFFF" android:textSize="11sp" />
+                <View android:layout_width="0dp" android:layout_height="1dp"
+                    android:layout_weight="1" android:background="#1EFFFFFF" />
+            </LinearLayout>
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Or enter your name manually:"
-                android:textColor="#55FFFFFF"
-                android:textSize="12sp"
-                android:layout_marginBottom="10dp" />
+                android:text="ENTER NAME MANUALLY"
+                android:textColor="#44FFFFFF"
+                android:textSize="10sp"
+                android:letterSpacing="0.18"
+                android:layout_marginBottom="8dp" />
 
             <EditText
                 android:id="@+id/et_manual_name"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="52dp"
                 android:hint="Your name"
                 android:inputType="textPersonName"
                 android:textColor="#FFFFFF"
                 android:textColorHint="#44FFFFFF"
                 android:background="@drawable/input_bg"
-                android:padding="14dp"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
+                android:textSize="14sp"
                 android:layout_marginBottom="12dp" />
 
             <TextView
@@ -145,144 +221,664 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#FF6B6B"
-                android:textSize="13sp"
-                android:layout_marginBottom="12dp"
-                android:visibility="gone" />
-
-            <ProgressBar
-                android:id="@+id/progress_picker"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:lineSpacingMultiplier="1.4"
                 android:layout_marginBottom="12dp"
                 android:visibility="gone" />
 
             <Button
                 android:id="@+id/btn_sign_in_manual"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
+                android:layout_height="52dp"
                 android:text="Sign In"
                 android:textColor="#000000"
                 android:backgroundTint="#FFFFFF"
                 android:textSize="14sp"
-                android:layout_marginBottom="16dp" />
+                android:letterSpacing="0.06"
+                android:layout_marginBottom="12dp" />
 
             <Button
                 android:id="@+id/btn_change_url"
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:text="← Change Server URL"
-                android:textColor="#55FFFFFF"
-                android:backgroundTint="#0D0D0D"
+                android:layout_height="44dp"
+                android:text="← Change Server"
+                android:textColor="#44FFFFFF"
+                android:backgroundTint="#00000000"
                 android:textSize="12sp" />
 
         </LinearLayout>
+    </ScrollView>
 
-        <!-- ══ SCREEN 3: DASHBOARD ══════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════════════════════════
+         SCREEN 3 — DASHBOARD  (the new shit)
+         ══════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+        android:id="@+id/layout_dashboard"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- ── Header bar ───────────────────────────────────────────── -->
         <LinearLayout
-            android:id="@+id/layout_dashboard"
+            android:id="@+id/header_bar"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:paddingLeft="20dp"
+            android:paddingRight="20dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:background="@drawable/header_bar_bg">
+
+            <!-- Left: wordmark + status -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="JARVIS"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:letterSpacing="0.3"
+                    android:fontFamily="sans-serif-light" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <View
+                        android:id="@+id/status_dot"
+                        android:layout_width="6dp"
+                        android:layout_height="6dp"
+                        android:background="@drawable/dot_online"
+                        android:layout_marginRight="5dp" />
+
+                    <TextView
+                        android:id="@+id/tv_status_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ONLINE"
+                        android:textColor="#44FF88"
+                        android:textSize="9sp"
+                        android:letterSpacing="0.2" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Right: avatar circle with initials -->
+            <FrameLayout
+                android:id="@+id/avatar_circle"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:background="@drawable/avatar_bg"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/tv_avatar_initial"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:text="J"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif-medium" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- ── Greeting row ─────────────────────────────────────────── -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="32dp"
-            android:gravity="center_horizontal"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="JARVIS"
-                android:textColor="#FFFFFF"
-                android:textSize="34sp"
-                android:letterSpacing="0.25"
-                android:layout_marginTop="48dp"
-                android:layout_marginBottom="4dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="● ONLINE"
-                android:textColor="#44FF88"
-                android:textSize="12sp"
-                android:letterSpacing="0.15"
-                android:layout_marginBottom="32dp" />
+            android:paddingLeft="20dp"
+            android:paddingRight="20dp"
+            android:paddingTop="22dp"
+            android:paddingBottom="8dp"
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/tv_welcome"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:text="Hello, User"
                 android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:gravity="center"
-                android:layout_marginBottom="8dp" />
-
-            <TextView
-                android:id="@+id/tv_connected_url"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#55FFFFFF"
-                android:textSize="11sp"
-                android:gravity="center"
+                android:textSize="26sp"
+                android:fontFamily="sans-serif-light"
                 android:layout_marginBottom="4dp" />
-
-            <TextView
-                android:id="@+id/tv_session_id"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#33FFFFFF"
-                android:textSize="10sp"
-                android:fontFamily="monospace"
-                android:gravity="center"
-                android:layout_marginBottom="8dp" />
 
             <TextView
                 android:id="@+id/tv_memory_count"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#44FF88"
-                android:textSize="11sp"
-                android:gravity="center"
-                android:layout_marginBottom="48dp" />
+                android:textSize="12sp" />
+        </LinearLayout>
 
-            <TextView
+        <!-- ── Horizontal quick-action tray ─────────────────────────── -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp"
+            android:paddingLeft="20dp"
+            android:paddingRight="20dp"
+            android:clipToPadding="false">
+
+            <LinearLayout
+                android:id="@+id/tray_quick_actions"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <!-- Card 1: Mic / Talk -->
+                <LinearLayout
+                    android:id="@+id/tray_btn_talk"
+                    android:layout_width="120dp"
+                    android:layout_height="110dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/tray_card_accent"
+                    android:layout_marginRight="12dp"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎙"
+                        android:textSize="28sp"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Talk"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Hold to speak"
+                        android:textColor="#88FFFFFF"
+                        android:textSize="9sp" />
+                </LinearLayout>
+
+                <!-- Card 2: Wallet -->
+                <LinearLayout
+                    android:id="@+id/tray_btn_wallet"
+                    android:layout_width="120dp"
+                    android:layout_height="110dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/tray_card_dark"
+                    android:layout_marginRight="12dp"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="◎"
+                        android:textColor="#9945FF"
+                        android:textSize="28sp"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Wallet"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Solana vault"
+                        android:textColor="#88FFFFFF"
+                        android:textSize="9sp" />
+                </LinearLayout>
+
+                <!-- Card 3: Memory -->
+                <LinearLayout
+                    android:id="@+id/tray_btn_memory"
+                    android:layout_width="120dp"
+                    android:layout_height="110dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/tray_card_dark"
+                    android:layout_marginRight="12dp"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🧠"
+                        android:textSize="28sp"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Memory"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:id="@+id/tray_memory_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 items"
+                        android:textColor="#88FFFFFF"
+                        android:textSize="9sp" />
+                </LinearLayout>
+
+                <!-- Card 4: Settings -->
+                <LinearLayout
+                    android:id="@+id/tray_btn_settings"
+                    android:layout_width="120dp"
+                    android:layout_height="110dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/tray_card_dark"
+                    android:layout_marginRight="4dp"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⚙️"
+                        android:textSize="28sp"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Settings"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Account &amp; server"
+                        android:textColor="#88FFFFFF"
+                        android:textSize="9sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- ── Scrollable content cards ──────────────────────────────── -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="none"
+            android:paddingBottom="100dp"
+            android:clipToPadding="false">
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Hold the home button to talk to Jarvis."
-                android:textColor="#88FFFFFF"
-                android:textSize="14sp"
-                android:gravity="center"
-                android:lineSpacingMultiplier="1.5"
-                android:layout_marginBottom="32dp" />
+                android:orientation="vertical"
+                android:paddingLeft="20dp"
+                android:paddingRight="20dp"
+                android:paddingTop="16dp">
+
+                <!-- ── Section label: VAULT ─────────────────────── -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="VAULT"
+                    android:textColor="#44FFFFFF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.22"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- Solana Wallet Card -->
+                <LinearLayout
+                    android:id="@+id/card_wallet"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/content_card_purple"
+                    android:padding="20dp"
+                    android:layout_marginBottom="12dp"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Solana Wallet"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="◎ SOL"
+                            android:textColor="#9945FF"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <!-- Balance row -->
+                    <TextView
+                        android:id="@+id/tv_sol_balance"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="—"
+                        android:textColor="#FFFFFF"
+                        android:textSize="32sp"
+                        android:fontFamily="sans-serif-thin"
+                        android:layout_marginBottom="4dp" />
+
+                    <TextView
+                        android:id="@+id/tv_sol_usd"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="$ —"
+                        android:textColor="#66FFFFFF"
+                        android:textSize="13sp"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- Address pill -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:background="@drawable/pill_dark"
+                        android:paddingLeft="12dp"
+                        android:paddingRight="12dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/tv_wallet_address"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Not connected"
+                            android:textColor="#66FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:singleLine="true"
+                            android:ellipsize="middle" />
+
+                        <TextView
+                            android:id="@+id/tv_copy_addr"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Copy"
+                            android:textColor="#9945FF"
+                            android:textSize="11sp"
+                            android:paddingLeft="8dp"
+                            android:clickable="true"
+                            android:focusable="true" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- ── Section label: MEMORY ────────────────────── -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="MEMORY"
+                    android:textColor="#44FFFFFF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.22"
+                    android:layout_marginBottom="10dp"
+                    android:layout_marginTop="8dp" />
+
+                <!-- Memory card -->
+                <LinearLayout
+                    android:id="@+id/card_memory"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/content_card_dark"
+                    android:padding="20dp"
+                    android:layout_marginBottom="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="What Jarvis knows"
+                            android:textColor="#FFFFFF"
+                            android:textSize="15sp"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tv_memory_badge_full"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/pill_green"
+                            android:paddingLeft="8dp"
+                            android:paddingRight="8dp"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:text="0"
+                            android:textColor="#000000"
+                            android:textSize="11sp"
+                            android:fontFamily="sans-serif-medium" />
+                    </LinearLayout>
+
+                    <!-- Memory list container — filled dynamically -->
+                    <LinearLayout
+                        android:id="@+id/memory_items_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <TextView
+                        android:id="@+id/tv_memory_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Jarvis hasn't learned anything yet.\nTry having a conversation."
+                        android:textColor="#44FFFFFF"
+                        android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.5"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <!-- ── Section label: SESSION ───────────────────── -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="SESSION"
+                    android:textColor="#44FFFFFF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.22"
+                    android:layout_marginBottom="10dp"
+                    android:layout_marginTop="8dp" />
+
+                <!-- Session info card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/content_card_dark"
+                    android:padding="20dp"
+                    android:layout_marginBottom="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="10dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="Server"
+                            android:textColor="#44FFFFFF"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tv_connected_url"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textColor="#CCFFFFFF"
+                            android:textSize="12sp"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="Session"
+                            android:textColor="#44FFFFFF"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tv_session_id"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textColor="#44FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- ── Section label: ACCOUNT ───────────────────── -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="ACCOUNT"
+                    android:textColor="#44FFFFFF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.22"
+                    android:layout_marginBottom="10dp"
+                    android:layout_marginTop="8dp" />
+
+                <!-- Account actions card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/content_card_dark"
+                    android:layout_marginBottom="12dp">
+
+                    <!-- Switch account row -->
+                    <LinearLayout
+                        android:id="@+id/btn_switch_account"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingLeft="20dp"
+                        android:paddingRight="20dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Switch Account"
+                            android:textColor="#FFFFFF"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="›"
+                            android:textColor="#44FFFFFF"
+                            android:textSize="20sp" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="1dp"
+                        android:background="#0EFFFFFF" />
+
+                    <!-- Reset row -->
+                    <LinearLayout
+                        android:id="@+id/btn_reset_settings"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingLeft="20dp"
+                        android:paddingRight="20dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Reset Everything"
+                            android:textColor="#FF6B6B"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="›"
+                            android:textColor="#66FF6B6B"
+                            android:textSize="20sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ── Floating bottom mic bar ────────────────────────────────── -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="88dp"
+            android:background="@drawable/bottom_bar_bg">
 
             <Button
                 android:id="@+id/btn_test_voice"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="Test Voice Now"
-                android:textColor="#000000"
-                android:backgroundTint="#FFFFFF"
-                android:textSize="15sp"
-                android:layout_marginBottom="16dp" />
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_gravity="center"
+                android:background="@drawable/mic_btn_bg"
+                android:text="🎙"
+                android:textSize="22sp"
+                android:backgroundTint="@null" />
+        </FrameLayout>
 
-            <Button
-                android:id="@+id/btn_switch_account"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="Switch Account"
-                android:textColor="#AAAAAA"
-                android:backgroundTint="#1A1A1A"
-                android:textSize="13sp"
-                android:layout_marginBottom="8dp" />
+    </LinearLayout>
 
-            <Button
-                android:id="@+id/btn_reset_settings"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="Reset Everything"
-                android:textColor="#FF6B6B"
-                android:backgroundTint="#1A1A1A"
-                android:textSize="13sp" />
-
-        </LinearLayout>
-
-    </FrameLayout>
-</ScrollView>
+</FrameLayout>
