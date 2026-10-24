@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Jarvis Main Activity — Redesigned UI
+    Jarvis Main Activity — Full Dashboard
     Three screens: URL Setup → Account Picker → Dashboard
 
-    Dashboard features:
-      • Header bar with JARVIS wordmark + status dot + avatar
-      • Horizontal scrollable "quick action" card tray
-      • Vertical scrollable content cards (Memories, Vault, Session)
-      • Bottom action bar with mic trigger + settings
+    Dashboard:
+      • Header bar (JARVIS wordmark + status + avatar)
+      • Horizontal tray: Talk · Vault · Memory · Reminders · Todos · Settings
+      • Scrollable cards:
+          ─ PASSWORD VAULT  (entries list + add + search + categories)
+          ─ SOLANA WALLET
+          ─ MEMORY
+          ─ REMINDERS
+          ─ HABITS
+          ─ TODOS / RESEARCH
+          ─ SESSION
+          ─ ACCOUNT
+      • Bottom mic bar
+    Landscape: tray collapses to left sidebar, content fills right
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -33,12 +42,10 @@
             android:paddingBottom="48dp"
             android:gravity="center_horizontal">
 
-            <!-- Top glow orb -->
             <View
                 android:layout_width="180dp"
                 android:layout_height="180dp"
                 android:layout_marginTop="80dp"
-                android:layout_marginBottom="0dp"
                 android:background="@drawable/glow_orb"
                 android:layout_gravity="center_horizontal" />
 
@@ -139,7 +146,6 @@
                 android:layout_width="120dp"
                 android:layout_height="120dp"
                 android:layout_marginTop="72dp"
-                android:layout_marginBottom="0dp"
                 android:background="@drawable/glow_orb_small"
                 android:layout_gravity="center_horizontal" />
 
@@ -162,7 +168,6 @@
                 android:textSize="13sp"
                 android:layout_marginBottom="36dp" />
 
-            <!-- Dynamic account cards go here -->
             <LinearLayout
                 android:id="@+id/layout_accounts_list"
                 android:layout_width="match_parent"
@@ -178,7 +183,6 @@
                 android:visibility="gone"
                 android:indeterminateTint="#FFFFFF" />
 
-            <!-- Divider -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -250,7 +254,9 @@
     </ScrollView>
 
     <!-- ══════════════════════════════════════════════════════════════
-         SCREEN 3 — DASHBOARD  (the new shit)
+         SCREEN 3 — DASHBOARD
+         Landscape: horizontal split (sidebar tray | content scroll)
+         Portrait: vertical stack (header | tray | scroll | mic bar)
          ══════════════════════════════════════════════════════════════ -->
     <LinearLayout
         android:id="@+id/layout_dashboard"
@@ -259,7 +265,7 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-        <!-- ── Header bar ───────────────────────────────────────────── -->
+        <!-- ── Header bar ─────────────────────────────────────────── -->
         <LinearLayout
             android:id="@+id/header_bar"
             android:layout_width="match_parent"
@@ -270,7 +276,6 @@
             android:orientation="horizontal"
             android:background="@drawable/header_bar_bg">
 
-            <!-- Left: wordmark + status -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -310,7 +315,19 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Right: avatar circle with initials -->
+            <!-- Search icon trigger -->
+            <TextView
+                android:id="@+id/header_search_btn"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:gravity="center"
+                android:text="🔍"
+                android:textSize="16sp"
+                android:layout_marginRight="8dp"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <!-- Avatar circle -->
             <FrameLayout
                 android:id="@+id/avatar_circle"
                 android:layout_width="38dp"
@@ -331,14 +348,15 @@
             </FrameLayout>
         </LinearLayout>
 
-        <!-- ── Greeting row ─────────────────────────────────────────── -->
+        <!-- ── Greeting row ────────────────────────────────────────── -->
         <LinearLayout
+            android:id="@+id/greeting_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingLeft="20dp"
             android:paddingRight="20dp"
-            android:paddingTop="22dp"
-            android:paddingBottom="8dp"
+            android:paddingTop="18dp"
+            android:paddingBottom="6dp"
             android:orientation="vertical">
 
             <TextView
@@ -349,7 +367,7 @@
                 android:textColor="#FFFFFF"
                 android:textSize="26sp"
                 android:fontFamily="sans-serif-light"
-                android:layout_marginBottom="4dp" />
+                android:layout_marginBottom="2dp" />
 
             <TextView
                 android:id="@+id/tv_memory_count"
@@ -359,13 +377,13 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- ── Horizontal quick-action tray ─────────────────────────── -->
+        <!-- ── Horizontal quick-action tray ────────────────────────── -->
         <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:scrollbars="none"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="8dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="6dp"
             android:paddingLeft="20dp"
             android:paddingRight="20dp"
             android:clipToPadding="false">
@@ -376,153 +394,161 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
-                <!-- Card 1: Mic / Talk -->
+                <!-- Talk -->
                 <LinearLayout
                     android:id="@+id/tray_btn_talk"
-                    android:layout_width="120dp"
-                    android:layout_height="110dp"
+                    android:layout_width="110dp"
+                    android:layout_height="100dp"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="@drawable/tray_card_accent"
-                    android:layout_marginRight="12dp"
+                    android:layout_marginRight="10dp"
                     android:clickable="true"
                     android:focusable="true">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🎙"
-                        android:textSize="28sp"
-                        android:layout_marginBottom="8dp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Talk"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="🎙" android:textSize="24sp" android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Talk" android:textColor="#FFFFFF" android:textSize="11sp"
                         android:fontFamily="sans-serif-medium" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Hold to speak"
-                        android:textColor="#88FFFFFF"
-                        android:textSize="9sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Speak to Jarvis" android:textColor="#88FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
 
-                <!-- Card 2: Wallet -->
+                <!-- Vault -->
+                <LinearLayout
+                    android:id="@+id/tray_btn_vault"
+                    android:layout_width="110dp"
+                    android:layout_height="100dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/tray_card_dark"
+                    android:layout_marginRight="10dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="🔐" android:textSize="24sp" android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Vault" android:textColor="#FFFFFF" android:textSize="11sp"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView
+                        android:id="@+id/tray_vault_badge"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0 saved" android:textColor="#88FFFFFF" android:textSize="8sp" />
+                </LinearLayout>
+
+                <!-- Wallet -->
                 <LinearLayout
                     android:id="@+id/tray_btn_wallet"
-                    android:layout_width="120dp"
-                    android:layout_height="110dp"
+                    android:layout_width="110dp"
+                    android:layout_height="100dp"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="@drawable/tray_card_dark"
-                    android:layout_marginRight="12dp"
+                    android:layout_marginRight="10dp"
                     android:clickable="true"
                     android:focusable="true">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="◎"
-                        android:textColor="#9945FF"
-                        android:textSize="28sp"
-                        android:layout_marginBottom="8dp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Wallet"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="◎" android:textColor="#9945FF" android:textSize="24sp"
+                        android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Wallet" android:textColor="#FFFFFF" android:textSize="11sp"
                         android:fontFamily="sans-serif-medium" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Solana vault"
-                        android:textColor="#88FFFFFF"
-                        android:textSize="9sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Solana" android:textColor="#88FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
 
-                <!-- Card 3: Memory -->
+                <!-- Memory -->
                 <LinearLayout
                     android:id="@+id/tray_btn_memory"
-                    android:layout_width="120dp"
-                    android:layout_height="110dp"
+                    android:layout_width="110dp"
+                    android:layout_height="100dp"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="@drawable/tray_card_dark"
-                    android:layout_marginRight="12dp"
+                    android:layout_marginRight="10dp"
                     android:clickable="true"
                     android:focusable="true">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🧠"
-                        android:textSize="28sp"
-                        android:layout_marginBottom="8dp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Memory"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="🧠" android:textSize="24sp" android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Memory" android:textColor="#FFFFFF" android:textSize="11sp"
                         android:fontFamily="sans-serif-medium" />
-
                     <TextView
                         android:id="@+id/tray_memory_badge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="0 items"
-                        android:textColor="#88FFFFFF"
-                        android:textSize="9sp" />
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0 items" android:textColor="#88FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
 
-                <!-- Card 4: Settings -->
+                <!-- Reminders -->
+                <LinearLayout
+                    android:id="@+id/tray_btn_reminders"
+                    android:layout_width="110dp"
+                    android:layout_height="100dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/tray_card_dark"
+                    android:layout_marginRight="10dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="⏰" android:textSize="24sp" android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Reminders" android:textColor="#FFFFFF" android:textSize="11sp"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView
+                        android:id="@+id/tray_reminders_badge"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0 set" android:textColor="#88FFFFFF" android:textSize="8sp" />
+                </LinearLayout>
+
+                <!-- Todos -->
+                <LinearLayout
+                    android:id="@+id/tray_btn_todos"
+                    android:layout_width="110dp"
+                    android:layout_height="100dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/tray_card_dark"
+                    android:layout_marginRight="10dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="📋" android:textSize="24sp" android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Todos" android:textColor="#FFFFFF" android:textSize="11sp"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView
+                        android:id="@+id/tray_todos_badge"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Research list" android:textColor="#88FFFFFF" android:textSize="8sp" />
+                </LinearLayout>
+
+                <!-- Settings -->
                 <LinearLayout
                     android:id="@+id/tray_btn_settings"
-                    android:layout_width="120dp"
-                    android:layout_height="110dp"
+                    android:layout_width="110dp"
+                    android:layout_height="100dp"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:background="@drawable/tray_card_dark"
                     android:layout_marginRight="4dp"
                     android:clickable="true"
                     android:focusable="true">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="⚙️"
-                        android:textSize="28sp"
-                        android:layout_marginBottom="8dp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Settings"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="⚙️" android:textSize="24sp" android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Settings" android:textColor="#FFFFFF" android:textSize="11sp"
                         android:fontFamily="sans-serif-medium" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Account &amp; server"
-                        android:textColor="#88FFFFFF"
-                        android:textSize="9sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Account &amp; server" android:textColor="#88FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
 
             </LinearLayout>
         </HorizontalScrollView>
 
-        <!-- ── Scrollable content cards ──────────────────────────────── -->
+        <!-- ── Scrollable content cards ─────────────────────────────── -->
         <ScrollView
+            android:id="@+id/dash_scroll_view"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
@@ -536,19 +562,257 @@
                 android:orientation="vertical"
                 android:paddingLeft="20dp"
                 android:paddingRight="20dp"
-                android:paddingTop="16dp">
+                android:paddingTop="14dp">
 
-                <!-- ── Section label: VAULT ─────────────────────── -->
+                <!-- ════════════════════════════════════════════════════
+                     PASSWORD VAULT CARD
+                     ════════════════════════════════════════════════════ -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="VAULT"
+                    android:text="PASSWORD VAULT"
                     android:textColor="#44FFFFFF"
                     android:textSize="10sp"
                     android:letterSpacing="0.22"
                     android:layout_marginBottom="10dp" />
 
-                <!-- Solana Wallet Card -->
+                <LinearLayout
+                    android:id="@+id/card_vault"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/content_card_dark"
+                    android:padding="20dp"
+                    android:layout_marginBottom="14dp">
+
+                    <!-- Vault header row -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="🔐 Passwords"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tv_vault_count_badge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/pill_dark"
+                            android:paddingLeft="10dp"
+                            android:paddingRight="10dp"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:text="0"
+                            android:textColor="#9945FF"
+                            android:textSize="11sp"
+                            android:fontFamily="sans-serif-medium" />
+                    </LinearLayout>
+
+                    <!-- Search bar -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/search_bg"
+                        android:paddingLeft="14dp"
+                        android:paddingRight="14dp"
+                        android:layout_marginBottom="14dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🔍"
+                            android:textSize="13sp"
+                            android:layout_marginRight="8dp" />
+
+                        <EditText
+                            android:id="@+id/et_vault_search"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:hint="Search passwords…"
+                            android:textColor="#FFFFFF"
+                            android:textColorHint="#44FFFFFF"
+                            android:textSize="13sp"
+                            android:background="@null"
+                            android:inputType="text"
+                            android:imeOptions="actionSearch"
+                            android:maxLines="1" />
+                    </LinearLayout>
+
+                    <!-- Category filter pills (horizontal scroll) -->
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:scrollbars="none"
+                        android:layout_marginBottom="16dp">
+
+                        <LinearLayout
+                            android:id="@+id/vault_category_pills"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <!-- Pills generated dynamically but placeholder All pill -->
+                            <TextView
+                                android:id="@+id/vault_pill_all"
+                                android:layout_width="wrap_content"
+                                android:layout_height="32dp"
+                                android:gravity="center"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:text="All"
+                                android:textColor="#FFFFFF"
+                                android:textSize="12sp"
+                                android:background="@drawable/category_pill_selected"
+                                android:layout_marginRight="8dp"
+                                android:clickable="true"
+                                android:focusable="true" />
+
+                            <TextView
+                                android:id="@+id/vault_pill_social"
+                                android:layout_width="wrap_content"
+                                android:layout_height="32dp"
+                                android:gravity="center"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:text="Social"
+                                android:textColor="#88FFFFFF"
+                                android:textSize="12sp"
+                                android:background="@drawable/pill_dark"
+                                android:layout_marginRight="8dp"
+                                android:clickable="true"
+                                android:focusable="true" />
+
+                            <TextView
+                                android:id="@+id/vault_pill_finance"
+                                android:layout_width="wrap_content"
+                                android:layout_height="32dp"
+                                android:gravity="center"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:text="Finance"
+                                android:textColor="#88FFFFFF"
+                                android:textSize="12sp"
+                                android:background="@drawable/pill_dark"
+                                android:layout_marginRight="8dp"
+                                android:clickable="true"
+                                android:focusable="true" />
+
+                            <TextView
+                                android:id="@+id/vault_pill_work"
+                                android:layout_width="wrap_content"
+                                android:layout_height="32dp"
+                                android:gravity="center"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:text="Work"
+                                android:textColor="#88FFFFFF"
+                                android:textSize="12sp"
+                                android:background="@drawable/pill_dark"
+                                android:layout_marginRight="8dp"
+                                android:clickable="true"
+                                android:focusable="true" />
+
+                            <TextView
+                                android:id="@+id/vault_pill_other"
+                                android:layout_width="wrap_content"
+                                android:layout_height="32dp"
+                                android:gravity="center"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:text="Other"
+                                android:textColor="#88FFFFFF"
+                                android:textSize="12sp"
+                                android:background="@drawable/pill_dark"
+                                android:layout_marginRight="4dp"
+                                android:clickable="true"
+                                android:focusable="true" />
+                        </LinearLayout>
+                    </HorizontalScrollView>
+
+                    <!-- Vault entries list (filled dynamically) -->
+                    <LinearLayout
+                        android:id="@+id/vault_entries_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <!-- Empty state -->
+                    <LinearLayout
+                        android:id="@+id/vault_empty_state"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="4dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="No passwords saved yet."
+                            android:textColor="#44FFFFFF"
+                            android:textSize="13sp"
+                            android:gravity="center"
+                            android:lineSpacingMultiplier="1.5" />
+                    </LinearLayout>
+
+                    <!-- Add new entry button -->
+                    <LinearLayout
+                        android:id="@+id/vault_add_btn"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:orientation="horizontal"
+                        android:gravity="center"
+                        android:background="@drawable/vault_add_btn_bg"
+                        android:layout_marginTop="14dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="+"
+                            android:textColor="#9945FF"
+                            android:textSize="20sp"
+                            android:layout_marginRight="8dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Add Password"
+                            android:textColor="#9945FF"
+                            android:textSize="13sp"
+                            android:fontFamily="sans-serif-medium" />
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- ════════════════════════════════════════════════════
+                     SOLANA WALLET CARD
+                     ════════════════════════════════════════════════════ -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="WALLET"
+                    android:textColor="#44FFFFFF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.22"
+                    android:layout_marginBottom="10dp"
+                    android:layout_marginTop="4dp" />
+
                 <LinearLayout
                     android:id="@+id/card_wallet"
                     android:layout_width="match_parent"
@@ -556,7 +820,7 @@
                     android:orientation="vertical"
                     android:background="@drawable/content_card_purple"
                     android:padding="20dp"
-                    android:layout_marginBottom="12dp"
+                    android:layout_marginBottom="14dp"
                     android:clickable="true"
                     android:focusable="true">
 
@@ -584,7 +848,6 @@
                             android:textSize="12sp" />
                     </LinearLayout>
 
-                    <!-- Balance row -->
                     <TextView
                         android:id="@+id/tv_sol_balance"
                         android:layout_width="match_parent"
@@ -604,7 +867,6 @@
                         android:textSize="13sp"
                         android:layout_marginBottom="16dp" />
 
-                    <!-- Address pill -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -641,7 +903,9 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- ── Section label: MEMORY ────────────────────── -->
+                <!-- ════════════════════════════════════════════════════
+                     MEMORY CARD
+                     ════════════════════════════════════════════════════ -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -650,9 +914,8 @@
                     android:textSize="10sp"
                     android:letterSpacing="0.22"
                     android:layout_marginBottom="10dp"
-                    android:layout_marginTop="8dp" />
+                    android:layout_marginTop="4dp" />
 
-                <!-- Memory card -->
                 <LinearLayout
                     android:id="@+id/card_memory"
                     android:layout_width="match_parent"
@@ -660,7 +923,7 @@
                     android:orientation="vertical"
                     android:background="@drawable/content_card_dark"
                     android:padding="20dp"
-                    android:layout_marginBottom="12dp">
+                    android:layout_marginBottom="14dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -693,7 +956,6 @@
                             android:fontFamily="sans-serif-medium" />
                     </LinearLayout>
 
-                    <!-- Memory list container — filled dynamically -->
                     <LinearLayout
                         android:id="@+id/memory_items_container"
                         android:layout_width="match_parent"
@@ -711,7 +973,220 @@
                         android:visibility="gone" />
                 </LinearLayout>
 
-                <!-- ── Section label: SESSION ───────────────────── -->
+                <!-- ════════════════════════════════════════════════════
+                     REMINDERS CARD
+                     ════════════════════════════════════════════════════ -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="REMINDERS"
+                    android:textColor="#44FFFFFF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.22"
+                    android:layout_marginBottom="10dp"
+                    android:layout_marginTop="4dp" />
+
+                <LinearLayout
+                    android:id="@+id/card_reminders"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/content_card_dark"
+                    android:padding="20dp"
+                    android:layout_marginBottom="14dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="⏰ Upcoming"
+                            android:textColor="#FFFFFF"
+                            android:textSize="15sp"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <ProgressBar
+                            android:id="@+id/progress_reminders"
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:indeterminateTint="#44FF88"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/reminders_items_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <TextView
+                        android:id="@+id/tv_reminders_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="No reminders set.\nTell Jarvis to remind you of something."
+                        android:textColor="#44FFFFFF"
+                        android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.5"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <!-- ════════════════════════════════════════════════════
+                     HABITS CARD
+                     ════════════════════════════════════════════════════ -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="HABITS"
+                    android:textColor="#44FFFFFF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.22"
+                    android:layout_marginBottom="10dp"
+                    android:layout_marginTop="4dp" />
+
+                <LinearLayout
+                    android:id="@+id/card_habits"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/content_card_dark"
+                    android:padding="20dp"
+                    android:layout_marginBottom="14dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="🔄 Daily Habits"
+                            android:textColor="#FFFFFF"
+                            android:textSize="15sp"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tv_habits_nudge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/pill_green"
+                            android:paddingLeft="8dp"
+                            android:paddingRight="8dp"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:text="On track"
+                            android:textColor="#000000"
+                            android:textSize="10sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/habits_items_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <TextView
+                        android:id="@+id/tv_habits_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="No habits tracked yet.\nTell Jarvis to track your daily habits."
+                        android:textColor="#44FFFFFF"
+                        android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.5"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <!-- ════════════════════════════════════════════════════
+                     TODOS / RESEARCH LIST CARD
+                     ════════════════════════════════════════════════════ -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="RESEARCH QUEUE"
+                    android:textColor="#44FFFFFF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.22"
+                    android:layout_marginBottom="10dp"
+                    android:layout_marginTop="4dp" />
+
+                <LinearLayout
+                    android:id="@+id/card_todos"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/content_card_dark"
+                    android:padding="20dp"
+                    android:layout_marginBottom="14dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="📋 Jarvis Night Queue"
+                            android:textColor="#FFFFFF"
+                            android:textSize="15sp"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tv_todos_count_badge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/pill_dark"
+                            android:paddingLeft="8dp"
+                            android:paddingRight="8dp"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:text="0"
+                            android:textColor="#FFD700"
+                            android:textSize="11sp"
+                            android:fontFamily="sans-serif-medium" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Topics Jarvis will research overnight"
+                        android:textColor="#44FFFFFF"
+                        android:textSize="11sp"
+                        android:layout_marginBottom="12dp" />
+
+                    <LinearLayout
+                        android:id="@+id/todos_items_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <TextView
+                        android:id="@+id/tv_todos_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Research queue is empty.\nTell Jarvis to research something tonight."
+                        android:textColor="#44FFFFFF"
+                        android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.5"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <!-- ════════════════════════════════════════════════════
+                     SESSION CARD
+                     ════════════════════════════════════════════════════ -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -720,16 +1195,15 @@
                     android:textSize="10sp"
                     android:letterSpacing="0.22"
                     android:layout_marginBottom="10dp"
-                    android:layout_marginTop="8dp" />
+                    android:layout_marginTop="4dp" />
 
-                <!-- Session info card -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:background="@drawable/content_card_dark"
                     android:padding="20dp"
-                    android:layout_marginBottom="12dp">
+                    android:layout_marginBottom="14dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -780,7 +1254,9 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- ── Section label: ACCOUNT ───────────────────── -->
+                <!-- ════════════════════════════════════════════════════
+                     ACCOUNT CARD
+                     ════════════════════════════════════════════════════ -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -789,17 +1265,15 @@
                     android:textSize="10sp"
                     android:letterSpacing="0.22"
                     android:layout_marginBottom="10dp"
-                    android:layout_marginTop="8dp" />
+                    android:layout_marginTop="4dp" />
 
-                <!-- Account actions card -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:background="@drawable/content_card_dark"
-                    android:layout_marginBottom="12dp">
+                    android:layout_marginBottom="14dp">
 
-                    <!-- Switch account row -->
                     <LinearLayout
                         android:id="@+id/btn_switch_account"
                         android:layout_width="match_parent"
@@ -830,7 +1304,6 @@
                     <View android:layout_width="match_parent" android:layout_height="1dp"
                         android:background="#0EFFFFFF" />
 
-                    <!-- Reset row -->
                     <LinearLayout
                         android:id="@+id/btn_reset_settings"
                         android:layout_width="match_parent"
@@ -862,7 +1335,7 @@
             </LinearLayout>
         </ScrollView>
 
-        <!-- ── Floating bottom mic bar ────────────────────────────────── -->
+        <!-- ── Floating bottom mic bar ─────────────────────────────────── -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="88dp"
