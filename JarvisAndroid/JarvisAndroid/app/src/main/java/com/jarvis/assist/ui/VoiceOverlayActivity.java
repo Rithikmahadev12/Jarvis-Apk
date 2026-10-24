@@ -714,17 +714,83 @@ public class VoiceOverlayActivity extends AppCompatActivity {
 
         JarvisClient.fetchMemories(url, userName, memories ->
             JarvisClient.chat(url, userMessage, sessionId, userName, userTitle, memories,
-                new JarvisClient.ChatCallback() {
+                new JarvisClient.ChatCallbackFull() {
+
+                    // ── Normal spoken reply ───────────────────────────────────
                     @Override public void onSuccess(String reply) {
                         runOnUiThread(() -> {
                             setStatus("Jarvis");
                             mDivider.setVisibility(View.VISIBLE);
                             mJarvisText.setVisibility(View.VISIBLE);
-                            // FIX 2: 8 ms tick = 2× faster typewriter.
                             typewriterReveal(mJarvisText, reply,
                                     () -> speakFromBackend(reply, url));
                         });
                     }
+
+                    // ── Backend returned a phone-control accessibility plan ───
+                    // Render saw source:"android", understood the intent was
+                    // phone control, ran planPhoneAction() and sent us the steps.
+                    // We execute them here on the device — no second round-trip.
+                    @Override public void onPhoneControlPlan(String reply, String planJson) {
+                        PhoneControlService svc = PhoneControlService.getInstance();
+                        if (svc == null) {
+                            // Accessibility service not enabled yet
+                            runOnUiThread(() -> {
+                                setStatus("Enable Accessibility Service");
+                                typewriterReveal(mJarvisText,
+                                    "I need Accessibility permission to control your phone. " +
+                                    "Go to Settings → Accessibility → Jarvis and enable it.",
+                                    () -> mHandler.postDelayed(
+                                            VoiceOverlayActivity.this::dismissSheet, 5000));
+                                mDivider.setVisibility(View.VISIBLE);
+                                mJarvisText.setVisibility(View.VISIBLE);
+                            });
+                            return;
+                        }
+
+                        runOnUiThread(() -> {
+                            setStatus("Executing…");
+                            if (!reply.isEmpty() && !reply.equals("On it, " + userTitle + ".")) {
+                                mDivider.setVisibility(View.VISIBLE);
+                                mJarvisText.setVisibility(View.VISIBLE);
+                                mJarvisText.setText(reply);
+                            }
+                        });
+
+                        svc.executePlan(planJson, url, new PhoneControlService.ExecutionCallback() {
+                            @Override
+                            public void onStepStart(int index, int total, String description) {
+                                runOnUiThread(() ->
+                                    setStatus("Step " + index + "/" + total + ": " + description));
+                            }
+                            @Override
+                            public void onSuccess(String summary) {
+                                String doneReply = "Done, " + (userTitle != null ? userTitle : "boss") +
+                                                   ". " + summary + " — complete.";
+                                runOnUiThread(() -> {
+                                    setStatus("Jarvis");
+                                    mDivider.setVisibility(View.VISIBLE);
+                                    mJarvisText.setVisibility(View.VISIBLE);
+                                    typewriterReveal(mJarvisText, doneReply,
+                                        () -> speakFromBackend(doneReply, url));
+                                });
+                            }
+                            @Override
+                            public void onFailure(String step, String reason) {
+                                String failReply = "Ran into trouble at " + step + ", " +
+                                                   (userTitle != null ? userTitle : "boss") +
+                                                   ". " + reason;
+                                runOnUiThread(() -> {
+                                    setStatus("Jarvis");
+                                    mDivider.setVisibility(View.VISIBLE);
+                                    mJarvisText.setVisibility(View.VISIBLE);
+                                    typewriterReveal(mJarvisText, failReply,
+                                        () -> speakFromBackend(failReply, url));
+                                });
+                            }
+                        });
+                    }
+
                     @Override public void onError(String error) {
                         runOnUiThread(() -> {
                             setStatus("Error — try again");
