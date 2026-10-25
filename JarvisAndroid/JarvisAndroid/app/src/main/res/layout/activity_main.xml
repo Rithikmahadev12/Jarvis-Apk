@@ -417,6 +417,7 @@
                 <!-- Vault -->
                 <LinearLayout
                     android:id="@+id/tray_btn_vault"
+                    android:soundEffectsEnabled="true"
                     android:layout_width="110dp"
                     android:layout_height="100dp"
                     android:orientation="vertical"
@@ -762,12 +763,22 @@
                         </LinearLayout>
                     </HorizontalScrollView>
 
-                    <!-- Vault entries list (filled dynamically) -->
-                    <LinearLayout
-                        android:id="@+id/vault_entries_container"
+                    <!-- Vault entries list — scrollable independently -->
+                    <androidx.core.widget.NestedScrollView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical" />
+                        android:maxHeight="480dp"
+                        android:fillViewport="false"
+                        android:scrollbars="vertical">
+
+                        <LinearLayout
+                            android:id="@+id/vault_entries_container"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:paddingBottom="4dp" />
+
+                    </androidx.core.widget.NestedScrollView>
 
                     <!-- Empty state -->
                     <LinearLayout
