@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   AndroidManifest.xml — FULL REPLACEMENT
-  Adds PhoneControlService (Accessibility Service) to the existing manifest.
-  Everything else is unchanged from the working build.
+  NEW: VaultLockActivity is now the LAUNCHER entry point.
+       MainActivity is only reachable after vault unlock.
+       LandscapeHudActivity added for HUD mode.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -15,6 +16,7 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <application
         android:allowBackup="true"
@@ -25,16 +27,47 @@
         android:theme="@style/Theme.JarvisAssist"
         android:usesCleartextTraffic="false">
 
-        <!-- ── MAIN SETUP ACTIVITY ── -->
+        <!--
+            ╔══════════════════════════════════════════════════════════════╗
+            ║  VAULT LOCK — this is the new LAUNCHER entry point          ║
+            ║  User MUST enter pattern before reaching the dashboard.     ║
+            ║  On first launch: prompts to CREATE a pattern.              ║
+            ╚══════════════════════════════════════════════════════════════╝
+        -->
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.VaultLockActivity"
             android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+            android:theme="@style/Theme.JarvisAssist"
+            android:windowSoftInputMode="stateHidden|adjustNothing"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+            ── MAIN DASHBOARD ──
+            Only reached after vault unlock.
+            NOT exported (can't be deep-linked from outside the app).
+        -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!--
+            ── LANDSCAPE HUD MODE ──
+            Triggered from dashboard tray or voice command.
+            Locks to landscape + keeps screen on.
+        -->
+        <activity
+            android:name=".ui.LandscapeHudActivity"
+            android:exported="false"
+            android:theme="@style/Theme.JarvisAssist"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="stateHidden|adjustNothing"
+            android:launchMode="singleTop" />
 
         <!-- ── VOICE OVERLAY ACTIVITY ── -->
         <activity
@@ -59,7 +92,7 @@
                 android:resource="@xml/interaction_service" />
         </service>
 
-        <!-- ── SESSION SERVICE — Android calls this to get a VoiceInteractionSession ── -->
+        <!-- ── SESSION SERVICE ── -->
         <service
             android:name=".JarvisVoiceSessionService"
             android:exported="true"
@@ -71,7 +104,7 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
-        <!-- ── BOOT RECEIVER (restart foreground service after reboot) ── -->
+        <!-- ── BOOT RECEIVER ── -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
@@ -81,14 +114,6 @@
         </receiver>
 
         <!-- ── PHONE CONTROL — Accessibility Service ── -->
-        <!--
-            This lets Jarvis navigate your phone's UI on voice command.
-            After installing the APK, go to:
-            Settings → Accessibility → Installed apps → Jarvis → enable "Phone Control"
-
-            Android will warn "this app can read your screen" — that's expected.
-            Jarvis only reads the UI when you give it a navigation command.
-        -->
         <service
             android:name=".PhoneControlService"
             android:exported="true"
