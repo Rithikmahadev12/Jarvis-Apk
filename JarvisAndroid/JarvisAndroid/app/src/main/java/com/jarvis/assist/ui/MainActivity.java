@@ -51,6 +51,9 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
+import android.hardware.SensorManager;
+import android.view.OrientationEventListener;
+
 
 /**
  * MainActivity — full Jarvis dashboard.
@@ -184,6 +187,9 @@ public class MainActivity extends AppCompatActivity {
     // Main scroll
     private ScrollView mDashScrollView;
 
+    // Auto-landscape listener
+    private OrientationEventListener mOrientationListener;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     @Override
@@ -209,6 +215,22 @@ public class MainActivity extends AppCompatActivity {
             showAccountPicker();
         } else {
             showUrlSetup();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (mOrientationListener != null) mOrientationListener.disable();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Re-enable only when we're on the dashboard
+        if (mOrientationListener != null && mLayoutDash != null
+                && mLayoutDash.getVisibility() == android.view.View.VISIBLE) {
+            if (mOrientationListener.canDetectOrientation()) mOrientationListener.enable();
         }
     }
 
@@ -563,6 +585,30 @@ public class MainActivity extends AppCompatActivity {
 
         // Resolve main scroll view
         mDashScrollView = findViewById(R.id.dash_scroll_view);
+
+        // ✅ FIX: auto-launch landscape HUD when phone is physically rotated
+        // instead of requiring a button tap.
+        if (mOrientationListener == null) {
+            mOrientationListener = new OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
+                private boolean mInLandscape = false;
+                @Override
+                public void onOrientationChanged(int orientation) {
+                    if (orientation == ORIENTATION_UNKNOWN) return;
+                    // Landscape = phone rotated 90° or 270° (with ±30° tolerance)
+                    boolean nowLandscape = (orientation > 60 && orientation < 120)
+                                       || (orientation > 240 && orientation < 300);
+                    if (nowLandscape && !mInLandscape) {
+                        mInLandscape = true;
+                        startActivity(new Intent(MainActivity.this, LandscapeHudActivity.class));
+                    } else if (!nowLandscape) {
+                        mInLandscape = false;
+                    }
+                }
+            };
+        }
+        if (mOrientationListener.canDetectOrientation()) {
+            mOrientationListener.enable();
+        }
 
         // Load everything in parallel
         loadVaultEntries();
