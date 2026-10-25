@@ -192,6 +192,14 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         mSession = SessionStore.get(this);
 
+        // ── VAULT GATE — must arrive with vault_unlocked=true from VaultLockActivity ──
+        boolean vaultUnlocked = getIntent() != null && getIntent().getBooleanExtra("vault_unlocked", false);
+        if (!vaultUnlocked) {
+            startActivity(new Intent(this, VaultLockActivity.class));
+            finish();
+            return;
+        }
+
         bindViews();
         ensureVaultKey();
 
@@ -264,6 +272,10 @@ public class MainActivity extends AppCompatActivity {
         mTrayBtnReminders.setOnClickListener(v -> scrollToCard(mCardReminders));
         mTrayBtnTodos.setOnClickListener(v -> scrollToCard(mCardTodos));
         mTrayBtnSettings.setOnClickListener(v -> showAccountMenu());
+
+        // HUD mode button
+        LinearLayout trayBtnHud = findViewById(R.id.tray_btn_hud);
+        if (trayBtnHud != null) trayBtnHud.setOnClickListener(v -> startActivity(new Intent(this, LandscapeHudActivity.class)));
 
         // ── VAULT card ────────────────────────────────────────────────────
         mCardVault             = findViewById(R.id.card_vault);
