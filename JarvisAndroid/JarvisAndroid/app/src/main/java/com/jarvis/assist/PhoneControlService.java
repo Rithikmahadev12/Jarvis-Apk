@@ -6,9 +6,11 @@ import android.accessibilityservice.GestureDescription;
 import android.content.Intent;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -22,44 +24,64 @@ import org.json.JSONObject;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
  * PhoneControlService — Android Accessibility Service
  *
- * Executes Jarvis phone-control action plans on the real phone UI.
- * No root required. Uses Android Accessibility APIs to:
- *   - Open apps via Intent
- *   - Find and tap UI elements by text or content description
- *   - Type text into focused fields
- *   - Scroll, swipe, go back, go home
- *   - Send screenshots back to backend for step verification
+ * FIX: open_app now has three launch fallbacks:
+ *   1. getLaunchIntentForPackage (standard)
+ *   2. Play Store deep link if not installed
+ *   3. queryIntentActivities scan for package by partial name
  *
- * HOW IT WORKS:
- *   1. VoiceOverlayActivity detects a "phone control" command and calls
- *      planPhoneControl() which POSTs to /api/phone-control/plan.
- *   2. Backend (phone-control.js) returns a JSON step array.
- *   3. VoiceOverlayActivity calls PhoneControlService.executeplan(steps, callback).
- *   4. This service walks the steps, each on a short delay for UI to settle.
- *   5. On screenshot_check steps, it serialises the current window's node tree
- *      to text and POSTs it to /api/phone-control/verify for Groq to evaluate.
- *   6. On completion or failure it calls back to VoiceOverlayActivity which
- *      speaks the result.
- *
- * SETUP: declare in AndroidManifest.xml (see manifest patch below).
- *   User must grant "Installed apps" + "Accessibility Service" in Settings.
- *   First-run MainActivity shows a prompt if it's not enabled yet.
+ * FIX: wait_ms defaults raised — YouTube/Instagram need 2500ms cold start.
+ * FIX: Extended package name map covers more Samsung/OEM variants.
  */
 public class PhoneControlService extends AccessibilityService {
 
     private static final String TAG = "JarvisPhoneCtrl";
 
-    // ── Singleton reference — VoiceOverlayActivity reaches in here ──────────
+    // ── Singleton reference ──────────────────────────────────────────────────
     private static PhoneControlService sInstance;
     public  static PhoneControlService getInstance() { return sInstance; }
+
+    // ── Extended local package map (fallback when PM can't resolve) ──────────
+    private static final Map<String, String[]> PKG_ALIASES = new HashMap<>();
+    static {
+        // Each key is a lowercase app name; value is ordered list of known package names to try
+        PKG_ALIASES.put("youtube",    new String[]{"com.google.android.youtube", "com.youtube.music"});
+        PKG_ALIASES.put("instagram",  new String[]{"com.instagram.android"});
+        PKG_ALIASES.put("tiktok",     new String[]{"com.zhiliaoapp.musically", "com.ss.android.ugc.trill"});
+        PKG_ALIASES.put("spotify",    new String[]{"com.spotify.music"});
+        PKG_ALIASES.put("chrome",     new String[]{"com.android.chrome", "com.chrome.beta"});
+        PKG_ALIASES.put("maps",       new String[]{"com.google.android.apps.maps"});
+        PKG_ALIASES.put("gmail",      new String[]{"com.google.android.gm"});
+        PKG_ALIASES.put("whatsapp",   new String[]{"com.whatsapp", "com.whatsapp.w4b"});
+        PKG_ALIASES.put("telegram",   new String[]{"org.telegram.messenger", "org.telegram.messenger.web"});
+        PKG_ALIASES.put("twitter",    new String[]{"com.twitter.android", "com.twitter.android.lite"});
+        PKG_ALIASES.put("reddit",     new String[]{"com.reddit.frontpage"});
+        PKG_ALIASES.put("snapchat",   new String[]{"com.snapchat.android"});
+        PKG_ALIASES.put("netflix",    new String[]{"com.netflix.mediaclient"});
+        PKG_ALIASES.put("amazon",     new String[]{"com.amazon.mShop.android.shopping"});
+        PKG_ALIASES.put("doordash",   new String[]{"com.dd.doordash"});
+        PKG_ALIASES.put("uber",       new String[]{"com.ubercab"});
+        PKG_ALIASES.put("lyft",       new String[]{"com.lyft.android"});
+        PKG_ALIASES.put("settings",   new String[]{Settings.ACTION_SETTINGS});  // handled specially
+        PKG_ALIASES.put("phone",      new String[]{"com.google.android.dialer", "com.samsung.android.dialer"});
+        PKG_ALIASES.put("messages",   new String[]{"com.google.android.apps.messaging", "com.samsung.android.messaging"});
+        PKG_ALIASES.put("contacts",   new String[]{"com.android.contacts", "com.samsung.android.contacts"});
+        PKG_ALIASES.put("camera",     new String[]{"com.android.camera2", "com.samsung.android.camera"});
+        PKG_ALIASES.put("files",      new String[]{"com.google.android.apps.nbu.files", "com.android.documentsui"});
+        PKG_ALIASES.put("clock",      new String[]{"com.google.android.deskclock", "com.samsung.android.clock"});
+        PKG_ALIASES.put("calculator", new String[]{"com.google.android.calculator", "com.samsung.android.calculator"});
+        PKG_ALIASES.put("play store", new String[]{"com.android.vending"});
+        PKG_ALIASES.put("photos",     new String[]{"com.google.android.apps.photos", "com.samsung.android.gallery3d"});
+    }
 
     // ── Execution state ──────────────────────────────────────────────────────
     private final Handler          mMain    = new Handler(Looper.getMainLooper());
@@ -67,14 +89,13 @@ public class PhoneControlService extends AccessibilityService {
     private volatile boolean       mRunning = false;
     private volatile boolean       mAborted = false;
 
-    // Callback interface for callers (VoiceOverlayActivity)
     public interface ExecutionCallback {
         void onStepStart(int index, int total, String description);
         void onSuccess(String summary);
         void onFailure(String step, String reason);
     }
 
-    // ── ACCESSIBILITY SERVICE LIFECYCLE ──────────────────────────────────────
+    // ── LIFECYCLE ────────────────────────────────────────────────────────────
 
     @Override
     public void onServiceConnected() {
@@ -106,19 +127,13 @@ public class PhoneControlService extends AccessibilityService {
         Log.d(TAG, "PhoneControlService destroyed");
     }
 
-    @Override public void onAccessibilityEvent(AccessibilityEvent event) { /* passive — we drive actions ourselves */ }
+    @Override public void onAccessibilityEvent(AccessibilityEvent event) {}
     @Override public void onInterrupt() { mAborted = true; }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PUBLIC API — called from VoiceOverlayActivity
+    // PUBLIC API
     // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Execute a Jarvis phone-control plan.
-     * @param planJson  The full plan JSON string from /api/phone-control/plan
-     * @param jarvisUrl Base URL of the Jarvis backend (for verify calls)
-     * @param cb        Callback on main thread
-     */
     public void executePlan(String planJson, String jarvisUrl, ExecutionCallback cb) {
         if (mRunning) {
             cb.onFailure("start", "Already running a phone control task — try again in a moment.");
@@ -141,7 +156,7 @@ public class PhoneControlService extends AccessibilityService {
                         return;
                     }
 
-                    JSONObject step = steps.getJSONObject(i);
+                    JSONObject step   = steps.getJSONObject(i);
                     String     action = step.getString("action");
                     final int  fi = i;
                     mMain.post(() -> cb.onStepStart(fi + 1, total, action));
@@ -154,7 +169,6 @@ public class PhoneControlService extends AccessibilityService {
                     }
                 }
 
-                // All steps done
                 final String finalSummary = summary;
                 mMain.post(() -> cb.onSuccess(finalSummary));
 
@@ -167,10 +181,7 @@ public class PhoneControlService extends AccessibilityService {
         });
     }
 
-    /** Abort any running plan. */
     public void abort() { mAborted = true; }
-
-    /** True while a plan is being executed. */
     public boolean isRunning() { return mRunning; }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -185,20 +196,82 @@ public class PhoneControlService extends AccessibilityService {
 
             // ── OPEN APP ─────────────────────────────────────────────────────
             case "open_app": {
-                String pkg = step.optString("package", "");
-                if (pkg.isEmpty()) {
-                    Log.w(TAG, "open_app: no package specified");
-                    return false;
+                String pkg     = step.optString("package", "").trim();
+                String appName = step.optString("app_name", "").trim();
+
+                // ── FIX: Special-case Android Settings ───────────────────────
+                if (pkg.equals(Settings.ACTION_SETTINGS) ||
+                    appName.equalsIgnoreCase("settings")) {
+                    Intent si = new Intent(Settings.ACTION_SETTINGS);
+                    si.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(si);
+                    sleep(step.optInt("wait_ms", 1800));
+                    return true;
                 }
-                Intent launch = getPackageManager().getLaunchIntentForPackage(pkg);
-                if (launch == null) {
-                    Log.w(TAG, "open_app: package not installed — " + pkg);
-                    return false;
+
+                // ── FIX: Try the package directly first ───────────────────────
+                if (!pkg.isEmpty()) {
+                    Intent launch = getPackageManager().getLaunchIntentForPackage(pkg);
+                    if (launch != null) {
+                        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        startActivity(launch);
+                        // FIX: heavy apps (YouTube, Instagram) need more time
+                        int defaultWait = isHeavyApp(pkg) ? 2800 : 1800;
+                        sleep(step.optInt("wait_ms", defaultWait));
+                        return true;
+                    }
+                    Log.w(TAG, "open_app: getLaunchIntent failed for '" + pkg + "', trying aliases...");
                 }
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                startActivity(launch);
-                sleep(step.optInt("wait_ms", 1800)); // wait for app to paint
-                return true;
+
+                // ── FIX: Try known alias packages by app_name ─────────────────
+                if (!appName.isEmpty()) {
+                    String[] candidates = PKG_ALIASES.get(appName.toLowerCase(Locale.ROOT));
+                    if (candidates != null) {
+                        for (String candidate : candidates) {
+                            Intent attempt = getPackageManager().getLaunchIntentForPackage(candidate);
+                            if (attempt != null) {
+                                attempt.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                                startActivity(attempt);
+                                int defaultWait = isHeavyApp(candidate) ? 2800 : 1800;
+                                sleep(step.optInt("wait_ms", defaultWait));
+                                Log.d(TAG, "open_app: launched via alias → " + candidate);
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                // ── FIX: Scan installed packages for partial match ─────────────
+                if (!appName.isEmpty()) {
+                    String resolvedPkg = resolveByPartialName(appName);
+                    if (resolvedPkg != null) {
+                        Intent fallback = getPackageManager().getLaunchIntentForPackage(resolvedPkg);
+                        if (fallback != null) {
+                            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                            startActivity(fallback);
+                            sleep(step.optInt("wait_ms", 2000));
+                            Log.d(TAG, "open_app: launched via partial name scan → " + resolvedPkg);
+                            return true;
+                        }
+                    }
+                }
+
+                // ── FIX: Last resort — open Play Store to install the app ──────
+                if (!pkg.isEmpty()) {
+                    try {
+                        Intent playStore = new Intent(Intent.ACTION_VIEW,
+                                Uri.parse("market://details?id=" + pkg));
+                        playStore.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(playStore);
+                        sleep(1500);
+                        Log.w(TAG, "open_app: '" + pkg + "' not installed — opened Play Store instead");
+                        // Return false so the plan reports the failure clearly
+                        return false;
+                    } catch (Exception ignored) {}
+                }
+
+                Log.e(TAG, "open_app: completely failed for pkg='" + pkg + "' appName='" + appName + "'");
+                return false;
             }
 
             // ── TAP ELEMENT ──────────────────────────────────────────────────
@@ -206,11 +279,8 @@ public class PhoneControlService extends AccessibilityService {
                 String description  = step.optString("description", "");
                 String fallbackText = step.optString("fallback_text", "");
 
-                // Try description-based search first, then exact text, then content-desc
                 AccessibilityNodeInfo node = findNode(description, fallbackText);
                 if (node == null) {
-                    Log.w(TAG, "tap_element: could not find '" + description + "' / '" + fallbackText + "'");
-                    // Wait a bit and retry once — sometimes the UI hasn't finished loading
                     sleep(800);
                     node = findNode(description, fallbackText);
                 }
@@ -225,7 +295,6 @@ public class PhoneControlService extends AccessibilityService {
             // ── TYPE TEXT ────────────────────────────────────────────────────
             case "type_text": {
                 String text = step.optString("text", "");
-                // Find the currently focused or editable node
                 AccessibilityNodeInfo focused = findFocusedEditText();
                 if (focused != null) {
                     Bundle args = new Bundle();
@@ -235,7 +304,6 @@ public class PhoneControlService extends AccessibilityService {
                     sleep(step.optInt("wait_ms", 350));
                     return ok;
                 }
-                // Fallback: inject key events character by character (slower but works everywhere)
                 injectText(text);
                 sleep(step.optInt("wait_ms", 350));
                 return true;
@@ -279,9 +347,7 @@ public class PhoneControlService extends AccessibilityService {
             // ── SCREENSHOT CHECK ─────────────────────────────────────────────
             case "screenshot_check": {
                 String expected = step.optString("expect", "");
-                // Describe the current window's node tree as text
                 String screenState = describeCurrentScreen();
-                // POST to Jarvis backend for Groq verification
                 String result = verifyWithBackend(jarvisUrl, expected, screenState);
                 if ("abort".equals(result)) {
                     Log.w(TAG, "screenshot_check: Groq says ABORT — " + expected);
@@ -289,11 +355,10 @@ public class PhoneControlService extends AccessibilityService {
                 }
                 if ("retry".equals(result)) {
                     sleep(800);
-                    // retry the tap from before this check
-                    return true; // let the caller advance to next step; retry is best-effort
+                    return true;
                 }
                 sleep(200);
-                return true; // ok
+                return true;
             }
 
             // ── TAP COORDS ───────────────────────────────────────────────────
@@ -305,35 +370,64 @@ public class PhoneControlService extends AccessibilityService {
 
             default:
                 Log.w(TAG, "Unknown action: " + action);
-                return true; // skip unknown actions gracefully
+                return true;
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // HELPERS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Returns true for apps that are known to have slow cold-start times. */
+    private boolean isHeavyApp(String pkg) {
+        return pkg.contains("youtube") ||
+               pkg.contains("instagram") ||
+               pkg.contains("netflix") ||
+               pkg.contains("tiktok") ||
+               pkg.contains("spotify");
+    }
+
+    /**
+     * Scan installed packages for one whose label or package name contains appName.
+     * Used as last resort before Play Store fallback.
+     */
+    private String resolveByPartialName(String appName) {
+        String lower = appName.toLowerCase(Locale.ROOT);
+        try {
+            List<android.content.pm.ResolveInfo> all = getPackageManager().queryIntentActivities(
+                    new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0);
+            for (android.content.pm.ResolveInfo ri : all) {
+                String label = ri.loadLabel(getPackageManager()).toString().toLowerCase(Locale.ROOT);
+                String pkgId = ri.activityInfo.packageName.toLowerCase(Locale.ROOT);
+                if (label.contains(lower) || pkgId.contains(lower)) {
+                    Log.d(TAG, "resolveByPartialName: '" + appName + "' → " + ri.activityInfo.packageName);
+                    return ri.activityInfo.packageName;
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "resolveByPartialName: " + e.getMessage());
+        }
+        return null;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // NODE FINDERS
     // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Find a node by natural-language description or fallback text.
-     * Search order: exact text match → content-description match → fuzzy substring match.
-     */
     private AccessibilityNodeInfo findNode(String description, String fallbackText) {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return null;
 
-        // 1. Exact text match on fallback_text
         if (!fallbackText.isEmpty()) {
             List<AccessibilityNodeInfo> byText = root.findAccessibilityNodeInfosByText(fallbackText);
             for (AccessibilityNodeInfo n : byText) {
                 if (isInteractive(n)) {
-                    // recycle non-winners
                     for (AccessibilityNodeInfo other : byText) {
                         if (other != n) other.recycle();
                     }
                     root.recycle();
                     return n;
                 }
-                // try the parent — some buttons wrap text in a non-clickable TextView
                 AccessibilityNodeInfo parent = n.getParent();
                 if (parent != null && isInteractive(parent)) {
                     n.recycle();
@@ -347,7 +441,6 @@ public class PhoneControlService extends AccessibilityService {
             for (AccessibilityNodeInfo n : byText) n.recycle();
         }
 
-        // 2. Content-description fuzzy match (for icon-only buttons)
         if (!description.isEmpty()) {
             AccessibilityNodeInfo found = findByContentDescription(root, description);
             if (found != null) {
@@ -370,10 +463,7 @@ public class PhoneControlService extends AccessibilityService {
                 (desc != null && desc.toString().toLowerCase(Locale.ROOT).contains(hint_lc)) ||
                 (text != null && text.toString().toLowerCase(Locale.ROOT).contains(hint_lc));
 
-        if (matches && isInteractive(node)) {
-            // clone so caller can recycle the tree
-            return node;
-        }
+        if (matches && isInteractive(node)) return node;
 
         for (int i = 0; i < node.getChildCount(); i++) {
             AccessibilityNodeInfo child = node.getChild(i);
@@ -387,14 +477,12 @@ public class PhoneControlService extends AccessibilityService {
     private AccessibilityNodeInfo findFocusedEditText() {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return null;
-        // Prefer the actually focused node
         AccessibilityNodeInfo focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
         if (focused != null && focused.isEditable()) {
             root.recycle();
             return focused;
         }
         if (focused != null) focused.recycle();
-        // Fall back to any editable node
         AccessibilityNodeInfo editable = findFirstEditable(root);
         root.recycle();
         return editable;
@@ -423,11 +511,9 @@ public class PhoneControlService extends AccessibilityService {
 
     private boolean performClick(AccessibilityNodeInfo node) {
         if (node == null) return false;
-        // Try performAction first (fastest, most reliable)
         if (node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             return true;
         }
-        // Try gesture tap at node's center bounds
         Rect bounds = new Rect();
         node.getBoundsInScreen(bounds);
         if (!bounds.isEmpty()) {
@@ -549,7 +635,7 @@ public class PhoneControlService extends AccessibilityService {
         switch (side.toLowerCase(Locale.ROOT)) {
             case "left":   return w * 0.05f;
             case "right":  return w * 0.95f;
-            default:       return w * 0.5f;   // center / top / bottom
+            default:       return w * 0.5f;
         }
     }
 
@@ -562,9 +648,6 @@ public class PhoneControlService extends AccessibilityService {
     }
 
     private void injectText(String text) {
-        // Last-resort fallback: focus the first editable and paste via clipboard
-        // (AccessibilityNodeInfo.ACTION_SET_TEXT is preferred and tried first in TYPE_TEXT case)
-        // This handles apps that block ACTION_SET_TEXT.
         AccessibilityNodeInfo editable = findFocusedEditText();
         if (editable != null) {
             editable.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS);
@@ -576,7 +659,7 @@ public class PhoneControlService extends AccessibilityService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // SCREEN DESCRIPTION (for screenshot_check steps)
+    // SCREEN DESCRIPTION
     // ─────────────────────────────────────────────────────────────────────────
 
     private String describeCurrentScreen() {
@@ -585,7 +668,6 @@ public class PhoneControlService extends AccessibilityService {
         StringBuilder sb = new StringBuilder();
         describeNode(root, sb, 0);
         root.recycle();
-        // Keep it short enough for the Groq token budget
         String full = sb.toString().trim();
         return full.length() > 800 ? full.substring(0, 800) + "…" : full;
     }
@@ -617,7 +699,6 @@ public class PhoneControlService extends AccessibilityService {
     // BACKEND VERIFY CALL
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** Returns "ok", "retry", or "abort". */
     private String verifyWithBackend(String jarvisUrl, String expected, String screenState) {
         if (jarvisUrl == null || jarvisUrl.isEmpty()) return "ok";
         try {
@@ -641,7 +722,7 @@ public class PhoneControlService extends AccessibilityService {
             }
         } catch (Exception e) {
             Log.w(TAG, "verifyWithBackend failed: " + e.getMessage());
-            return "ok"; // non-fatal — keep going
+            return "ok";
         }
     }
 
