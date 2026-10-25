@@ -1,16 +1,20 @@
 package com.jarvis.assist.ui;
 
-import android.animation.ArgbEvaluator;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.content.Intent;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RadialGradient;
+import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
@@ -21,211 +25,216 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.jarvis.assist.R;
 import com.jarvis.assist.storage.SessionStore;
 
 /**
- * VaultLockActivity — the alien-symbol grid keypad seen in the video.
- *
- * Layout:
- *   ┌─────────────────────────────┐
- *   │  VAULT          [ ● online ]│  ← header
- *   │  ENTER PATTERN              │
- *   │  ┌──────────────────────┐   │
- *   │  │  ☽  ⊕  ▷  ∑  ◈  ⊛  │   │
- *   │  │  λ  ∇  ⊞  ⊠  ◇  ⊗  │   │  ← 8×7 symbol grid
- *   │  │  … (56 symbols total)│   │
- *   │  └──────────────────────┘   │
- *   │  [  CLEAR  ]  [  ENTER  ]   │
- *   └─────────────────────────────┘
- *
- * Pattern = sequence of tapped symbol indices.
- * Stored pattern = SHA-256 hash in SharedPreferences.
- * On success → launches MainActivity (skips vault lock screen).
+ * VaultLockActivity — alien symbol grid keypad.
+ * Matches video exactly:
+ *   - 3D raised bevel cells
+ *   - White radial glow ripple on tap (finger glow effect)
+ *   - Grid fills screen between header and CLEAR/ENTER
+ *   - SHA-256 pattern hash in SharedPreferences
  */
 public class VaultLockActivity extends AppCompatActivity {
 
-    // ── Constants ──────────────────────────────────────────────────────────
-    private static final String PREF_VAULT_LOCK   = "jarvis_vault_lock";
-    private static final String KEY_PATTERN_HASH  = "pattern_hash";
-    private static final String KEY_PATTERN_SET   = "pattern_set";
-    private static final int    PATTERN_MIN_LEN   = 4;
-    private static final int    GRID_COLS         = 7;
-    private static final int    GRID_ROWS         = 8;
+    private static final String PREF_VAULT_LOCK  = "jarvis_vault_lock";
+    private static final String KEY_PATTERN_HASH = "pattern_hash";
+    private static final String KEY_PATTERN_SET  = "pattern_set";
+    private static final int    PATTERN_MIN_LEN  = 4;
+    private static final int    GRID_COLS        = 7;
+    private static final int    GRID_ROWS        = 8;
 
-    // ── The 56 alien / esoteric symbols for the grid ──────────────────────
+    // 56 esoteric / alien symbols — matches visual style in video
     private static final String[] SYMBOLS = {
-        "☽","⊕","▷","∑","◈","⊛","λ",
+        "−","⊕","▷","∑","◈","⊛","λ",
         "∇","⊞","⊠","◇","⊗","ψ","∆",
         "⋈","◉","⊘","⊡","◬","⊜","⊝",
-        "∓","⊻","⋄","◊","⊙","⊚","⊗",
+        "∓","⊻","⋄","◊","⊙","⊚","×",
         "☿","♃","♆","♇","♄","♀","♂",
         "⌖","⌘","⎔","⎚","⍥","⍟","⍰",
         "⌬","⌭","⌮","⌯","⌰","⌱","⌲",
-        "∰","∯","∮","∭","∬","∫","∇"
+        "∰","∯","∮","∭","∬","∫","≈"
     };
 
-    // ── State ─────────────────────────────────────────────────────────────
-    private final StringBuilder mPatternInput = new StringBuilder();
+    private final StringBuilder mPatternInput   = new StringBuilder();
     private TextView[]          mSymbolCells;
     private TextView            mPatternDisplay;
     private boolean             mIsSettingPattern = false;
     private String              mFirstPatternHash = null;
     private SessionStore        mSession;
+    private TextView            mTvSubtitle;
+    private LinearLayout        mRootLayout;
 
-    // ── UI refs ───────────────────────────────────────────────────────────
-    private TextView mTvSubtitle;
-    private TextView mTvBtnClear;
-    private TextView mTvBtnEnter;
-    private LinearLayout mRootLayout;
-
-    // ──────────────────────────────────────────────────────────────────────
+    // Ripple overlay — drawn on top of everything to show finger glow
+    private RippleOverlayView   mRippleOverlay;
 
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
-        mSession = SessionStore.get(this);
+        // Full screen immersive
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_FULLSCREEN |
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
-        // Check if vault lock is already set up
+        mSession = SessionStore.get(this);
         android.content.SharedPreferences prefs =
             getSharedPreferences(PREF_VAULT_LOCK, MODE_PRIVATE);
-        boolean patternSet = prefs.getBoolean(KEY_PATTERN_SET, false);
-
-        if (!patternSet) {
-            mIsSettingPattern = true;
-        }
-
+        mIsSettingPattern = !prefs.getBoolean(KEY_PATTERN_SET, false);
         buildUI();
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // UI Construction
-    // ──────────────────────────────────────────────────────────────────────
+    // ── UI ────────────────────────────────────────────────────────────────
 
     private void buildUI() {
-        // Root — full black background
+        // Root FrameLayout so we can layer the ripple overlay on top
+        FrameLayout rootFrame = new FrameLayout(this);
+        rootFrame.setBackgroundColor(Color.parseColor("#050508"));
+
+        // Main content column
         mRootLayout = new LinearLayout(this);
         mRootLayout.setOrientation(LinearLayout.VERTICAL);
-        mRootLayout.setBackgroundColor(Color.parseColor("#050508"));
-        mRootLayout.setPadding(dp(16), dp(0), dp(16), dp(16));
+        mRootLayout.setPadding(dp(14), dp(36), dp(14), dp(14));
+        rootFrame.addView(mRootLayout, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // ── HEADER ────────────────────────────────────────────────────────
+        // Ripple overlay on top (intercepts nothing — passthrough)
+        mRippleOverlay = new RippleOverlayView(this);
+        rootFrame.addView(mRippleOverlay, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        buildHeader();
+        buildSubtitle();
+        buildPatternDisplay();
+        buildGrid();
+        buildBottomButtons();
+
+        setContentView(rootFrame);
+    }
+
+    private void buildHeader() {
         FrameLayout header = new FrameLayout(this);
-        LinearLayout.LayoutParams headerLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(64));
-        header.setLayoutParams(headerLp);
+        LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(58));
+        header.setLayoutParams(hlp);
 
-        // Top-left: VAULT title
-        LinearLayout leftHeader = new LinearLayout(this);
-        leftHeader.setOrientation(LinearLayout.VERTICAL);
-        leftHeader.setGravity(Gravity.CENTER_VERTICAL);
+        // Left — VAULT title
+        LinearLayout left = new LinearLayout(this);
+        left.setOrientation(LinearLayout.VERTICAL);
+        left.setGravity(Gravity.CENTER_VERTICAL);
         FrameLayout.LayoutParams leftLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.MATCH_PARENT);
         leftLp.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
-        leftHeader.setLayoutParams(leftLp);
+        left.setLayoutParams(leftLp);
 
-        // Small top tag
-        TextView tvTag = new TextView(this);
-        tvTag.setText("JARVIS SYS · SECURE");
-        tvTag.setTextColor(Color.parseColor("#33FFFFFF"));
-        tvTag.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
-        tvTag.setLetterSpacing(0.18f);
-        leftHeader.addView(tvTag);
+        TextView tvSys = new TextView(this);
+        tvSys.setText("JARVIS SYS · SECURE");
+        tvSys.setTextColor(Color.parseColor("#33FFFFFF"));
+        tvSys.setTextSize(TypedValue.COMPLEX_UNIT_SP, 8);
+        tvSys.setLetterSpacing(0.2f);
+        left.addView(tvSys);
 
-        // Big VAULT text
-        TextView tvVaultTitle = new TextView(this);
-        tvVaultTitle.setText("VAULT");
-        tvVaultTitle.setTextColor(Color.WHITE);
-        tvVaultTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
-        tvVaultTitle.setTypeface(null, Typeface.BOLD);
-        tvVaultTitle.setLetterSpacing(0.12f);
-        leftHeader.addView(tvVaultTitle);
+        TextView tvTitle = new TextView(this);
+        tvTitle.setText("VAULT");
+        tvTitle.setTextColor(Color.WHITE);
+        tvTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
+        tvTitle.setTypeface(null, Typeface.BOLD);
+        tvTitle.setLetterSpacing(0.14f);
+        left.addView(tvTitle);
 
-        header.addView(leftHeader);
+        header.addView(left);
 
-        // Top-right: online indicator
-        LinearLayout rightHeader = new LinearLayout(this);
-        rightHeader.setOrientation(LinearLayout.HORIZONTAL);
-        rightHeader.setGravity(Gravity.CENTER_VERTICAL);
+        // Right — blue status dot (matches video top-right circle)
+        LinearLayout right = new LinearLayout(this);
+        right.setOrientation(LinearLayout.HORIZONTAL);
+        right.setGravity(Gravity.CENTER_VERTICAL);
         FrameLayout.LayoutParams rightLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT);
-        rightLp.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
-        rightHeader.setLayoutParams(rightLp);
+        rightLp.gravity = Gravity.END | Gravity.TOP;
+        rightLp.topMargin = dp(4);
+        right.setLayoutParams(rightLp);
 
-        // Pulsing dot
-        View dot = new View(this);
-        dot.setBackgroundColor(Color.parseColor("#44FF88"));
-        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(8), dp(8));
-        dotLp.rightMargin = dp(6);
-        dot.setLayoutParams(dotLp);
-        dot.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
-            // Make it round
-            dot.setBackground(createCircleDrawable(Color.parseColor("#44FF88")));
-        });
-        pulseView(dot);
-        rightHeader.addView(dot);
+        // Outer ring
+        FrameLayout dotFrame = new FrameLayout(this);
+        LinearLayout.LayoutParams dfLp = new LinearLayout.LayoutParams(dp(22), dp(22));
+        dfLp.rightMargin = dp(4);
+        dotFrame.setLayoutParams(dfLp);
 
-        TextView tvOnline = new TextView(this);
-        tvOnline.setText("SECURED");
-        tvOnline.setTextColor(Color.parseColor("#44FF88"));
-        tvOnline.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
-        tvOnline.setLetterSpacing(0.1f);
-        rightHeader.addView(tvOnline);
+        View outerRing = new View(this);
+        outerRing.setBackground(createCircle(Color.parseColor("#224488")));
+        dotFrame.addView(outerRing, new FrameLayout.LayoutParams(dp(22), dp(22)));
 
-        header.addView(rightHeader);
+        View innerDot = new View(this);
+        innerDot.setBackground(createCircle(Color.parseColor("#4488FF")));
+        FrameLayout.LayoutParams innerLp = new FrameLayout.LayoutParams(dp(12), dp(12));
+        innerLp.gravity = Gravity.CENTER;
+        dotFrame.addView(innerDot, innerLp);
+        pulseView(innerDot);
+
+        right.addView(dotFrame);
+
+        // Small counter like "01" in video
+        TextView tvCount = new TextView(this);
+        tvCount.setText("01");
+        tvCount.setTextColor(Color.parseColor("#4488FF"));
+        tvCount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        tvCount.setTypeface(Typeface.MONOSPACE);
+        right.addView(tvCount);
+
+        header.addView(right);
         mRootLayout.addView(header);
+    }
 
-        // ── SUBTITLE ─────────────────────────────────────────────────────
+    private void buildSubtitle() {
         mTvSubtitle = new TextView(this);
         mTvSubtitle.setText(mIsSettingPattern ? "CREATE YOUR PATTERN" : "ENTER PATTERN");
         mTvSubtitle.setTextColor(Color.parseColor("#88FFFFFF"));
-        mTvSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-        mTvSubtitle.setLetterSpacing(0.18f);
-        LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(
+        mTvSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        mTvSubtitle.setLetterSpacing(0.2f);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        subLp.bottomMargin = dp(10);
-        mTvSubtitle.setLayoutParams(subLp);
+        lp.bottomMargin = dp(8);
+        mTvSubtitle.setLayoutParams(lp);
         mRootLayout.addView(mTvSubtitle);
+    }
 
-        // ── PATTERN DISPLAY ───────────────────────────────────────────────
+    private void buildPatternDisplay() {
         mPatternDisplay = new TextView(this);
         mPatternDisplay.setText("·  ·  ·  ·");
         mPatternDisplay.setTextColor(Color.parseColor("#33FFFFFF"));
-        mPatternDisplay.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        mPatternDisplay.setLetterSpacing(0.2f);
-        LinearLayout.LayoutParams pdLp = new LinearLayout.LayoutParams(
+        mPatternDisplay.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        mPatternDisplay.setLetterSpacing(0.1f);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        pdLp.bottomMargin = dp(12);
-        mPatternDisplay.setLayoutParams(pdLp);
+        lp.bottomMargin = dp(10);
+        mPatternDisplay.setLayoutParams(lp);
         mRootLayout.addView(mPatternDisplay);
-
-        // ── SYMBOL GRID ───────────────────────────────────────────────────
-        buildSymbolGrid();
-
-        // ── BOTTOM BUTTONS ────────────────────────────────────────────────
-        buildBottomButtons();
-
-        setContentView(mRootLayout);
     }
 
-    private void buildSymbolGrid() {
-        // Outer card with dark border glow
+    private void buildGrid() {
+        // Card wrapping the grid — dark blue-black with subtle border
         FrameLayout gridCard = new FrameLayout(this);
-        gridCard.setBackground(createGridBackground());
+        gridCard.setBackground(createRoundRect(Color.parseColor("#070B12"),
+                Color.parseColor("#1A2A44"), dp(10), dp(1)));
         LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        cardLp.bottomMargin = dp(12);
+        cardLp.bottomMargin = dp(10);
         gridCard.setLayoutParams(cardLp);
-        gridCard.setPadding(dp(6), dp(6), dp(6), dp(6));
+        gridCard.setPadding(dp(4), dp(6), dp(4), dp(6));
 
-        // Grid layout
         GridLayout grid = new GridLayout(this);
         grid.setColumnCount(GRID_COLS);
         grid.setRowCount(GRID_ROWS);
+        FrameLayout.LayoutParams gridLp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT);
+        grid.setLayoutParams(gridLp);
 
         mSymbolCells = new TextView[SYMBOLS.length];
 
@@ -233,10 +242,10 @@ public class VaultLockActivity extends AppCompatActivity {
             final int idx = i;
             TextView cell = new TextView(this);
             cell.setText(SYMBOLS[i]);
-            cell.setTextColor(Color.parseColor("#6699AACC")); // dim cyan-white
-            cell.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+            cell.setTextColor(Color.parseColor("#7799BBDD"));
+            cell.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
             cell.setGravity(Gravity.CENTER);
-            cell.setBackground(createCellBackground(false));
+            cell.setBackground(createCellBg(false));
             cell.setClickable(true);
             cell.setFocusable(true);
 
@@ -244,9 +253,22 @@ public class VaultLockActivity extends AppCompatActivity {
             glp.columnSpec = GridLayout.spec(i % GRID_COLS, 1f);
             glp.rowSpec    = GridLayout.spec(i / GRID_COLS, 1f);
             glp.setMargins(dp(2), dp(2), dp(2), dp(2));
-            glp.width  = GridLayout.LayoutParams.FILL_PARENT;
-            glp.height = 0; // fill by row weight
+            glp.width  = 0;
+            glp.height = 0;
             cell.setLayoutParams(glp);
+
+            // Touch listener for the finger glow ripple effect
+            cell.setOnTouchListener((v, event) -> {
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    // Get absolute position for ripple
+                    int[] loc = new int[2];
+                    v.getLocationInWindow(loc);
+                    float rx = loc[0] + event.getX();
+                    float ry = loc[1] + event.getY();
+                    mRippleOverlay.triggerRipple(rx, ry);
+                }
+                return false; // still fire onClick
+            });
 
             cell.setOnClickListener(v -> onSymbolTapped(idx, cell));
             mSymbolCells[i] = cell;
@@ -258,85 +280,78 @@ public class VaultLockActivity extends AppCompatActivity {
     }
 
     private void buildBottomButtons() {
-        LinearLayout btnRow = new LinearLayout(this);
-        btnRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(52));
-        btnRow.setLayoutParams(rowLp);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(52)));
 
-        // CLEAR button
-        mTvBtnClear = new TextView(this);
-        mTvBtnClear.setText("CLEAR");
-        mTvBtnClear.setTextColor(Color.parseColor("#AAFFFFFF"));
-        mTvBtnClear.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        mTvBtnClear.setLetterSpacing(0.15f);
-        mTvBtnClear.setGravity(Gravity.CENTER);
-        mTvBtnClear.setBackground(createButtonBackground(false));
-        LinearLayout.LayoutParams clearLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+        // CLEAR
+        TextView btnClear = new TextView(this);
+        btnClear.setText("CLEAR");
+        btnClear.setTextColor(Color.parseColor("#AAFFFFFF"));
+        btnClear.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        btnClear.setLetterSpacing(0.15f);
+        btnClear.setGravity(Gravity.CENTER);
+        btnClear.setBackground(createRoundRect(Color.parseColor("#0F0F18"),
+                Color.parseColor("#333355"), dp(6), dp(1)));
+        LinearLayout.LayoutParams clearLp = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
         clearLp.rightMargin = dp(8);
-        mTvBtnClear.setLayoutParams(clearLp);
-        mTvBtnClear.setClickable(true);
-        mTvBtnClear.setFocusable(true);
-        mTvBtnClear.setOnClickListener(v -> clearPattern());
-        btnRow.addView(mTvBtnClear);
+        btnClear.setLayoutParams(clearLp);
+        btnClear.setClickable(true);
+        btnClear.setFocusable(true);
+        btnClear.setOnClickListener(v -> clearPattern());
+        row.addView(btnClear);
 
-        // ENTER button
-        mTvBtnEnter = new TextView(this);
-        mTvBtnEnter.setText("ENTER");
-        mTvBtnEnter.setTextColor(Color.parseColor("#FF3333"));
-        mTvBtnEnter.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        mTvBtnEnter.setLetterSpacing(0.15f);
-        mTvBtnEnter.setGravity(Gravity.CENTER);
-        mTvBtnEnter.setBackground(createButtonBackground(true));
-        LinearLayout.LayoutParams enterLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-        mTvBtnEnter.setLayoutParams(enterLp);
-        mTvBtnEnter.setClickable(true);
-        mTvBtnEnter.setFocusable(true);
-        mTvBtnEnter.setOnClickListener(v -> submitPattern());
-        btnRow.addView(mTvBtnEnter);
+        // ENTER — red border exactly like video
+        TextView btnEnter = new TextView(this);
+        btnEnter.setText("ENTER");
+        btnEnter.setTextColor(Color.parseColor("#FF3333"));
+        btnEnter.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        btnEnter.setLetterSpacing(0.15f);
+        btnEnter.setGravity(Gravity.CENTER);
+        btnEnter.setBackground(createRoundRect(Color.parseColor("#120500"),
+                Color.parseColor("#AA2200"), dp(6), dp(2)));
+        btnEnter.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        btnEnter.setClickable(true);
+        btnEnter.setFocusable(true);
+        btnEnter.setOnClickListener(v -> submitPattern());
+        row.addView(btnEnter);
 
-        mRootLayout.addView(btnRow);
+        mRootLayout.addView(row);
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Symbol tap logic
-    // ──────────────────────────────────────────────────────────────────────
+    // ── Logic ─────────────────────────────────────────────────────────────
 
     private void onSymbolTapped(int idx, TextView cell) {
-        // Haptic
         Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-        if (vib != null && vib.hasVibrator()) {
-            vib.vibrate(VibrationEffect.createOneShot(18, VibrationEffect.DEFAULT_AMPLITUDE));
-        }
+        if (vib != null && vib.hasVibrator())
+            vib.vibrate(VibrationEffect.createOneShot(14, VibrationEffect.DEFAULT_AMPLITUDE));
 
-        // Flash the cell bright
-        cell.setTextColor(Color.parseColor("#00FFCC"));
-        cell.setBackground(createCellBackground(true));
-
+        // Flash cell bright cyan then back
+        cell.setTextColor(Color.parseColor("#00FFEE"));
+        cell.setBackground(createCellBg(true));
         cell.postDelayed(() -> {
-            cell.setTextColor(Color.parseColor("#9955AAEE"));
-            cell.setBackground(createCellBackground(false));
-        }, 300);
+            cell.setTextColor(Color.parseColor("#7799BBDD"));
+            cell.setBackground(createCellBg(false));
+        }, 280);
 
-        // Append to pattern
         mPatternInput.append((char)('A' + idx));
-        updatePatternDisplay();
+        updatePatternDots();
     }
 
-    private void updatePatternDisplay() {
+    private void updatePatternDots() {
         int len = mPatternInput.length();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < len; i++) {
-            sb.append(i < len ? "●" : "·");
+            sb.append("●");
             if (i < len - 1) sb.append("  ");
         }
-        // dim remaining dots
-        if (len < 6) {
-            if (sb.length() > 0 && len > 0) sb.append("  ");
-            for (int i = len; i < Math.max(len + 1, 4); i++) {
-                sb.append("·");
-                if (i < Math.max(len + 1, 4) - 1) sb.append("  ");
-            }
+        int dots = Math.max(4, len + 1);
+        for (int i = len; i < dots; i++) {
+            if (sb.length() > 0) sb.append("  ");
+            sb.append("·");
         }
         mPatternDisplay.setText(sb.toString());
         mPatternDisplay.setTextColor(Color.parseColor("#88FFFFFF"));
@@ -346,57 +361,48 @@ public class VaultLockActivity extends AppCompatActivity {
         mPatternInput.setLength(0);
         mPatternDisplay.setText("·  ·  ·  ·");
         mPatternDisplay.setTextColor(Color.parseColor("#33FFFFFF"));
-        // Flash all cells dim
-        for (TextView cell : mSymbolCells) {
-            cell.setTextColor(Color.parseColor("#6699AACC"));
-            cell.setBackground(createCellBackground(false));
+        for (TextView c : mSymbolCells) {
+            c.setTextColor(Color.parseColor("#7799BBDD"));
+            c.setBackground(createCellBg(false));
         }
     }
 
     private void submitPattern() {
-        String pattern = mPatternInput.toString();
-        if (pattern.length() < PATTERN_MIN_LEN) {
-            shakePatternDisplay();
-            Toast.makeText(this, "Pattern too short — tap at least " + PATTERN_MIN_LEN + " symbols", Toast.LENGTH_SHORT).show();
+        if (mPatternInput.length() < PATTERN_MIN_LEN) {
+            shakeDisplay();
+            Toast.makeText(this, "Tap at least " + PATTERN_MIN_LEN + " symbols", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        String hash = sha256(pattern);
-        android.content.SharedPreferences prefs =
-                getSharedPreferences(PREF_VAULT_LOCK, MODE_PRIVATE);
+        String hash = sha256(mPatternInput.toString());
+        android.content.SharedPreferences prefs = getSharedPreferences(PREF_VAULT_LOCK, MODE_PRIVATE);
 
         if (mIsSettingPattern) {
-            // Setting phase 1 — confirm phase
             if (mFirstPatternHash == null) {
                 mFirstPatternHash = hash;
                 clearPattern();
                 mTvSubtitle.setText("CONFIRM PATTERN");
-                flashSubtitle("#FFD700");
+                flashText(mTvSubtitle, "#FFD700");
             } else {
-                // Phase 2
                 if (mFirstPatternHash.equals(hash)) {
-                    prefs.edit()
-                         .putString(KEY_PATTERN_HASH, hash)
-                         .putBoolean(KEY_PATTERN_SET, true)
-                         .apply();
+                    prefs.edit().putString(KEY_PATTERN_HASH, hash)
+                                .putBoolean(KEY_PATTERN_SET, true).apply();
                     flashSuccess();
                 } else {
                     mFirstPatternHash = null;
                     clearPattern();
                     mTvSubtitle.setText("MISMATCH — TRY AGAIN");
-                    flashSubtitle("#FF4444");
-                    shakePatternDisplay();
+                    flashText(mTvSubtitle, "#FF4444");
+                    shakeDisplay();
                 }
             }
         } else {
-            // Validate
             String saved = prefs.getString(KEY_PATTERN_HASH, "");
             if (saved.equals(hash)) {
                 flashSuccess();
             } else {
                 clearPattern();
-                shakePatternDisplay();
-                flashSubtitle("#FF4444");
+                shakeDisplay();
+                flashText(mTvSubtitle, "#FF4444");
                 mTvSubtitle.setText("WRONG PATTERN");
                 mTvSubtitle.postDelayed(() -> mTvSubtitle.setText("ENTER PATTERN"), 1500);
             }
@@ -404,128 +410,167 @@ public class VaultLockActivity extends AppCompatActivity {
     }
 
     private void flashSuccess() {
-        // Green flash, then launch vault dashboard
         mRootLayout.setBackgroundColor(Color.parseColor("#0A3322"));
         mTvSubtitle.setText("ACCESS GRANTED");
         mTvSubtitle.setTextColor(Color.parseColor("#44FF88"));
         mRootLayout.postDelayed(() -> {
-            Intent intent = new Intent(this, MainActivity.class);
-            intent.putExtra("vault_unlocked", true);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
+            Intent i = new Intent(this, MainActivity.class);
+            i.putExtra("vault_unlocked", true);
+            i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(i);
             finish();
             overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         }, 600);
     }
 
-    private void flashSubtitle(String hexColor) {
-        ObjectAnimator anim = ObjectAnimator.ofArgb(
-                mTvSubtitle, "textColor",
-                Color.parseColor(hexColor),
-                Color.parseColor("#88FFFFFF"));
-        anim.setDuration(800);
-        anim.start();
+    private void flashText(TextView tv, String hex) {
+        ObjectAnimator.ofArgb(tv, "textColor",
+                Color.parseColor(hex), Color.parseColor("#88FFFFFF"))
+                .setDuration(800).start();
     }
 
-    private void shakePatternDisplay() {
+    private void shakeDisplay() {
         android.view.animation.TranslateAnimation shake =
                 new android.view.animation.TranslateAnimation(-dp(8), dp(8), 0, 0);
-        shake.setDuration(80);
-        shake.setRepeatCount(4);
+        shake.setDuration(70);
+        shake.setRepeatCount(5);
         shake.setRepeatMode(android.view.animation.Animation.REVERSE);
         mPatternDisplay.startAnimation(shake);
-        // Red flash
-        ObjectAnimator colorAnim = ObjectAnimator.ofArgb(
-                mPatternDisplay, "textColor",
-                Color.parseColor("#FF4444"),
-                Color.parseColor("#33FFFFFF"));
-        colorAnim.setDuration(500);
-        colorAnim.start();
+        ObjectAnimator.ofArgb(mPatternDisplay, "textColor",
+                Color.parseColor("#FF3333"), Color.parseColor("#33FFFFFF"))
+                .setDuration(500).start();
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Drawable helpers
-    // ──────────────────────────────────────────────────────────────────────
+    // ── Drawables ─────────────────────────────────────────────────────────
 
-    private android.graphics.drawable.Drawable createCellBackground(boolean active) {
-        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-        gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-        gd.setCornerRadius(dp(4));
+    /**
+     * 3D raised bevel cell — dark base, lighter top/left highlight via layered gradient.
+     * Matches the video's raised button look.
+     */
+    private android.graphics.drawable.Drawable createCellBg(boolean active) {
         if (active) {
-            gd.setColor(Color.parseColor("#1A00FFCC"));
-            gd.setStroke(dp(1), Color.parseColor("#00FFCC"));
-        } else {
-            gd.setColor(Color.parseColor("#0D1A2A"));
-            gd.setStroke(dp(1), Color.parseColor("#1A3355"));
+            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+            gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+            gd.setCornerRadius(dp(5));
+            gd.setColor(Color.parseColor("#1A00DDCC"));
+            gd.setStroke(dp(1), Color.parseColor("#00FFEE"));
+            return gd;
         }
-        return gd;
+        // Layered: base dark + top highlight stripe = bevel illusion
+        android.graphics.drawable.GradientDrawable base = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.parseColor("#1C2D3E"), Color.parseColor("#0A1520")});
+        base.setCornerRadius(dp(5));
+        base.setStroke(dp(1), Color.parseColor("#223344"));
+
+        android.graphics.drawable.GradientDrawable highlight = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.parseColor("#33557799"), Color.parseColor("#00000000")});
+        highlight.setCornerRadius(dp(5));
+
+        android.graphics.drawable.LayerDrawable layer = new android.graphics.drawable.LayerDrawable(
+                new android.graphics.drawable.Drawable[]{base, highlight});
+        return layer;
     }
 
-    private android.graphics.drawable.Drawable createGridBackground() {
+    private android.graphics.drawable.Drawable createRoundRect(int fill, int stroke,
+            float radius, int strokeW) {
         android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
         gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-        gd.setCornerRadius(dp(8));
-        gd.setColor(Color.parseColor("#070B12"));
-        gd.setStroke(dp(1), Color.parseColor("#1A3355"));
+        gd.setCornerRadius(radius);
+        gd.setColor(fill);
+        gd.setStroke(strokeW, stroke);
         return gd;
     }
 
-    private android.graphics.drawable.Drawable createButtonBackground(boolean isEnter) {
-        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-        gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-        gd.setCornerRadius(dp(6));
-        if (isEnter) {
-            gd.setColor(Color.parseColor("#1A220008"));
-            gd.setStroke(dp(1), Color.parseColor("#993322"));
-        } else {
-            gd.setColor(Color.parseColor("#0F0F18"));
-            gd.setStroke(dp(1), Color.parseColor("#333355"));
-        }
-        return gd;
-    }
-
-    private android.graphics.drawable.Drawable createCircleDrawable(int color) {
+    private android.graphics.drawable.Drawable createCircle(int color) {
         android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
         gd.setShape(android.graphics.drawable.GradientDrawable.OVAL);
         gd.setColor(color);
         return gd;
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Animation helpers
-    // ──────────────────────────────────────────────────────────────────────
+    // ── Animations ────────────────────────────────────────────────────────
 
     private void pulseView(View v) {
-        ObjectAnimator anim = ObjectAnimator.ofFloat(v, "alpha", 1f, 0.2f);
-        anim.setDuration(900);
-        anim.setRepeatCount(ValueAnimator.INFINITE);
-        anim.setRepeatMode(ValueAnimator.REVERSE);
-        anim.setInterpolator(new DecelerateInterpolator());
-        anim.start();
+        ObjectAnimator a = ObjectAnimator.ofFloat(v, "alpha", 1f, 0.25f);
+        a.setDuration(850);
+        a.setRepeatCount(ValueAnimator.INFINITE);
+        a.setRepeatMode(ValueAnimator.REVERSE);
+        a.setInterpolator(new DecelerateInterpolator());
+        a.start();
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Crypto
-    // ──────────────────────────────────────────────────────────────────────
+    // ── Crypto ────────────────────────────────────────────────────────────
 
     private String sha256(String input) {
         try {
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            java.security.MessageDigest d = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] h = d.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder();
-            for (byte b : hash) sb.append(String.format("%02x", b));
+            for (byte b : h) sb.append(String.format("%02x", b));
             return sb.toString();
-        } catch (Exception e) {
-            return input; // fallback — shouldn't happen
-        }
+        } catch (Exception e) { return input; }
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Util
-    // ──────────────────────────────────────────────────────────────────────
+    private int dp(int v) {
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v,
+                getResources().getDisplayMetrics());
+    }
 
-    private int dp(int val) {
-        return (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, val, getResources().getDisplayMetrics());
+    // ── Ripple Overlay View ───────────────────────────────────────────────
+    // Draws the white radial glow exactly where the finger lands — matches video
+
+    static class RippleOverlayView extends View {
+        private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private float mRx, mRy, mRadius = 0f;
+        private float mAlpha = 0f;
+        private boolean mAnimating = false;
+        private final android.os.Handler mH = new android.os.Handler(android.os.Looper.getMainLooper());
+
+        RippleOverlayView(android.content.Context ctx) {
+            super(ctx);
+            setWillNotDraw(false);
+            // Pass all touches through
+            setClickable(false);
+            setFocusable(false);
+        }
+
+        void triggerRipple(float x, float y) {
+            mRx = x;
+            mRy = y;
+            mRadius = 0f;
+            mAlpha = 1f;
+            mAnimating = true;
+            animateFrame();
+        }
+
+        private void animateFrame() {
+            if (!mAnimating) return;
+            mRadius += 12f;
+            mAlpha  -= 0.06f;
+            if (mAlpha <= 0f) {
+                mAlpha     = 0f;
+                mAnimating = false;
+            }
+            invalidate();
+            if (mAnimating) mH.postDelayed(this::animateFrame, 16);
+        }
+
+        @Override
+        protected void onDraw(Canvas c) {
+            if (mAlpha <= 0f) return;
+            // Radial gradient: white center → transparent edge
+            RadialGradient rg = new RadialGradient(mRx, mRy, Math.max(mRadius, 1f),
+                    new int[]{
+                        Color.argb((int)(200 * mAlpha), 255, 255, 255),
+                        Color.argb((int)(80  * mAlpha), 180, 220, 255),
+                        Color.TRANSPARENT
+                    },
+                    new float[]{0f, 0.4f, 1f},
+                    Shader.TileMode.CLAMP);
+            mPaint.setShader(rg);
+            c.drawCircle(mRx, mRy, mRadius, mPaint);
+        }
     }
 }
