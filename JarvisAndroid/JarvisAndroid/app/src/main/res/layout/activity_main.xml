@@ -543,6 +543,27 @@
                         android:text="Account &amp; server" android:textColor="#88FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
 
+                <!-- HUD Mode -->
+                <LinearLayout
+                    android:id="@+id/tray_btn_hud"
+                    android:layout_width="110dp"
+                    android:layout_height="100dp"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/tray_card_accent"
+                    android:layout_marginRight="4dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="◉" android:textSize="24sp" android:textColor="#CC2200"
+                        android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="HUD Mode" android:textColor="#FFFFFF" android:textSize="11sp"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Landscape view" android:textColor="#CC2200" android:textSize="8sp" />
+                </LinearLayout>
+
             </LinearLayout>
         </HorizontalScrollView>
 
