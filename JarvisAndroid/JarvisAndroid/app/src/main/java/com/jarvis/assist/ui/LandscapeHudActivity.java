@@ -421,8 +421,8 @@ public class LandscapeHudActivity extends AppCompatActivity {
         mTvWalletBig.setGravity(Gravity.END);
         mTvWalletBig.setMaxLines(1);
         mTvWalletBig.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM);
-        mTvWalletBig.setAutoSizeTextTypeUniformWithRange(
-                Math.round(sp(4f)), Math.round(sp(9f)), 1, TypedValue.COMPLEX_UNIT_SP);
+        mTvWalletBig.setAutoSizeTextTypeUniformWithConfiguration(
+        Math.round(sp(4f)), Math.round(sp(9f)), 1, TypedValue.COMPLEX_UNIT_SP);
         LinearLayout.LayoutParams wbLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
