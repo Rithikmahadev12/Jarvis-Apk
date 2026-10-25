@@ -1119,7 +1119,7 @@ public class HomeHudActivity extends AppCompatActivity {
             canvas.drawRect(0, 0, w, h, mBgP);
             mBgP.setShader(null);
 
-            float tl = dp(14);
+            float tl = Math.round(14 * d);
             float midY = h * 0.42f;
 
             // K.A.R.A tag line
@@ -1130,7 +1130,7 @@ public class HomeHudActivity extends AppCompatActivity {
             dotP.setStyle(Paint.Style.FILL);
             dotP.setColor(Color.parseColor("#CC2200"));
             canvas.drawCircle(tl - d*2, midY - h*0.14f, 4*d, dotP);
-            canvas.drawText("K.A.R.A  10 NEED YOU · I'VE —", tl + dp(6), midY - h*0.09f, mKaraP);
+            canvas.drawText("K.A.R.A  10 NEED YOU · I'VE —", tl + Math.round(6 * d), midY - h*0.09f, mKaraP);
 
             // Greeting line (small, dimmer)
             mBigP.setTextSize(h * 0.19f);
@@ -1142,7 +1142,7 @@ public class HomeHudActivity extends AppCompatActivity {
 
             // Sub text
             mSubP.setTextSize(h * 0.10f);
-            canvas.drawText(mSub, tl, h - dp(6), mSubP);
+            canvas.drawText(mSub, tl, h - Math.round(6 * d), mSubP);
 
             // Wallet — top right
             mWalP.setTextSize(h * 0.14f);
