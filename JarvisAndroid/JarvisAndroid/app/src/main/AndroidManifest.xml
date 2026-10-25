@@ -47,8 +47,22 @@
         </activity>
 
         <!--
+            ── HOME HUD — Iron Man portal home screen ──
+            Reached after VaultLockActivity grants access.
+            Renders the spinning orb + module tray.
+            Auto-rotates to LandscapeHudActivity on phone tilt.
+        -->
+        <activity
+            android:name=".ui.HomeHudActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.JarvisAssist"
+            android:windowSoftInputMode="stateHidden|adjustNothing"
+            android:launchMode="singleTop" />
+
+        <!--
             ── MAIN DASHBOARD ──
-            Only reached after vault unlock.
+            Reached from module taps inside HomeHudActivity.
             NOT exported (can't be deep-linked from outside the app).
         -->
         <activity
