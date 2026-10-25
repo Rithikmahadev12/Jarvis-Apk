@@ -21,17 +21,8 @@ import okhttp3.Response;
 /**
  * JarvisClient — all HTTP calls to the Jarvis backend.
  *
- * Flow:
- *   1. ping()             — verify URL is a live Jarvis backend
- *   2. fetchProfiles()    — get list of all real accounts on the server
- *   3. fetchProfile()     — load one account's full data (title, role, etc.)
- *   4. fetchMemories()    — pull everything Jarvis remembers about this user
- *   5. chat()             — send a voice message with full identity + memories injected
- *   6. fetchWallet()      — GET /api/wallet/:name (Solana balance)
- *   7. fetchReminders()   — GET /api/reminders  (upcoming one-off reminders/timers)
- *   8. fetchHabits()      — GET /api/habits/due  (recurring habit nudge check)
- *   9. fetchTodos()       — GET /api/todos (night-shift research queue)
- *   10. fetchBriefing()   — GET /api/briefing/:user (today's morning briefing)
+ * FIX (wallet): Server exposes GET /api/wallet/balances?userName=<name>
+ *               NOT /api/wallet/:name — corrected fetchWallet() accordingly.
  */
 public class JarvisClient {
 
@@ -60,14 +51,12 @@ public class JarvisClient {
         public boolean isOwner() { return "owner".equals(role); }
     }
 
-    /** A single upcoming reminder / timer from /api/reminders */
     public static class JarvisReminder {
         public final String id;
         public final String label;
-        public final String type;        // "reminder" | "timer" | "event"
-        public final String fireAt;      // ISO 8601
+        public final String type;
+        public final String fireAt;
         public final boolean isDue;
-
         public JarvisReminder(String id, String label, String type, String fireAt, boolean isDue) {
             this.id     = id;
             this.label  = label;
@@ -77,13 +66,11 @@ public class JarvisClient {
         }
     }
 
-    /** A single todo / research item from /api/todos */
     public static class JarvisTodo {
         public final String id;
         public final String text;
-        public final String status; // "pending" | "researching" | "done"
+        public final String status;
         public final String addedAt;
-
         public JarvisTodo(String id, String text, String status, String addedAt) {
             this.id      = id;
             this.text    = text;
@@ -137,7 +124,6 @@ public class JarvisClient {
     }
 
     public interface HabitsCallback {
-        /** @param nudgePrompt null if no missed habit nudge; otherwise the prompt text */
         void onResult(String nudgePrompt);
     }
 
@@ -147,7 +133,6 @@ public class JarvisClient {
     }
 
     public interface BriefingCallback {
-        /** @param briefingText null if no briefing today yet */
         void onResult(String briefingText);
     }
 
@@ -327,12 +312,24 @@ public class JarvisClient {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 6. fetchWallet — GET /api/wallet/:name
+    // 6. fetchWallet — GET /api/wallet/balances?userName=<name>
+    //
+    // BUG FIX: The server (server.js) exposes the wallet route as:
+    //   GET /api/wallet/balances   (query param: ?userName=<name>)
+    // The old code was hitting /api/wallet/:name which does NOT exist and
+    // always returned 404 → "No wallet configured". Fixed here.
+    //
+    // Server response shape: { address, balance, usdValue, ... }
     // ─────────────────────────────────────────────────────────────────────────
 
     public static void fetchWallet(String baseUrl, String name, WalletCallback cb) {
         if (name == null || name.isEmpty()) { cb.onNotConfigured(); return; }
-        String url = clean(baseUrl) + "/api/wallet/" + name.trim();
+
+        // ✅ FIXED: was /api/wallet/:name — server doesn't have that route.
+        // Correct endpoint is /api/wallet/balances?userName=<name>
+        String url = clean(baseUrl) + "/api/wallet/balances?userName=" + encodeParam(name.trim());
+
+        Log.d(TAG, "→ fetchWallet: " + url);
         Request req = new Request.Builder().url(url).get().build();
         HTTP.newCall(req).enqueue(new Callback() {
             @Override public void onFailure(Call call, IOException e) { cb.onError(e.getMessage()); }
@@ -340,10 +337,12 @@ public class JarvisClient {
                 try {
                     String raw = r.body().string();
                     r.close();
+                    Log.d(TAG, "← wallet response (" + r.code() + "): " + raw);
                     if (r.code() == 404) { cb.onNotConfigured(); return; }
                     if (!r.isSuccessful()) { cb.onError("HTTP " + r.code()); return; }
                     JSONObject j = new JSONObject(raw);
-                    if (j.has("error")) { cb.onNotConfigured(); return; }
+                    // Server may surface an error field even on 200
+                    if (j.has("error") && !j.isNull("error")) { cb.onNotConfigured(); return; }
                     String addr = j.optString("address", "");
                     double bal  = j.optDouble("balance", 0.0);
                     double usd  = j.optDouble("usdValue", 0.0);
@@ -355,8 +354,7 @@ public class JarvisClient {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 7. fetchReminders — GET /api/reminders → upcoming timers + reminders
-    //    Returns list sorted by fireAt ascending.
+    // 7. fetchReminders
     // ─────────────────────────────────────────────────────────────────────────
 
     public static void fetchReminders(String baseUrl, RemindersCallback cb) {
@@ -372,7 +370,6 @@ public class JarvisClient {
                     r.close();
                     if (!r.isSuccessful()) { cb.onError("HTTP " + r.code()); return; }
                     JSONObject parsed = new JSONObject(raw);
-                    // Server returns { items: [...] }
                     JSONArray arr = parsed.optJSONArray("items");
                     if (arr == null) arr = parsed.optJSONArray("reminders");
                     List<JarvisReminder> list = new ArrayList<>();
@@ -399,15 +396,14 @@ public class JarvisClient {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 8. fetchHabits — GET /api/habits/due?tz=&sessionId=
-    //    Returns { prompt: "..." } or { prompt: null }
+    // 8. fetchHabits
     // ─────────────────────────────────────────────────────────────────────────
 
     public static void fetchHabits(String baseUrl, String userTitle, String sessionId,
                                    String tz, HabitsCallback cb) {
-        String safeTitle   = (userTitle   != null && !userTitle.isEmpty())   ? userTitle   : "Sir";
-        String safeSess    = (sessionId   != null && !sessionId.isEmpty())   ? sessionId   : "android";
-        String safeTz      = (tz          != null && !tz.isEmpty())          ? tz          : "America/Los_Angeles";
+        String safeTitle = (userTitle  != null && !userTitle.isEmpty())  ? userTitle  : "Sir";
+        String safeSess  = (sessionId  != null && !sessionId.isEmpty())  ? sessionId  : "android";
+        String safeTz    = (tz         != null && !tz.isEmpty())         ? tz         : "America/Los_Angeles";
 
         String url = clean(baseUrl) + "/api/habits/due"
                 + "?userTitle=" + encodeParam(safeTitle)
@@ -434,19 +430,10 @@ public class JarvisClient {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 9. fetchTodos — GET /api/todos  (night-shift research list)
-    //    Server returns raw JSON array [ {id,text,status,addedAt,...} ]
-    //    Falls back to /api/todos?status=pending if the server returns all.
+    // 9. fetchTodos
     // ─────────────────────────────────────────────────────────────────────────
 
     public static void fetchTodos(String baseUrl, TodosCallback cb) {
-        // Jarvis todos.js exposes its data through /api/chat; we route via
-        // a direct GET to the raw data file as-served or fall back gracefully.
-        // The server.js currently has NO dedicated GET /api/todos route but the
-        // Night Shift script reads data/todos.json directly. We hit the briefing
-        // endpoint which includes pending todos as part of context, OR we add
-        // our own lightweight GET. Here we try /api/todos (works if owner added it),
-        // falling back to /api/briefing/:user which includes todo count.
         String url = clean(baseUrl) + "/api/todos";
         Request req = new Request.Builder().url(url).get().build();
         HTTP.newCall(req).enqueue(new Callback() {
@@ -458,20 +445,13 @@ public class JarvisClient {
                 try {
                     String raw = r.body().string();
                     r.close();
-                    if (!r.isSuccessful()) {
-                        // 404 means the route doesn't exist yet — silently return empty
-                        cb.onSuccess(new ArrayList<>());
-                        return;
-                    }
+                    if (!r.isSuccessful()) { cb.onSuccess(new ArrayList<>()); return; }
                     List<JarvisTodo> list = new ArrayList<>();
-                    // Server may return [] array or { todos: [...] }
                     if (raw.trim().startsWith("[")) {
                         JSONArray arr = new JSONArray(raw);
                         for (int i = 0; i < arr.length(); i++) {
-                            try {
-                                JSONObject item = arr.getJSONObject(i);
-                                list.add(parseTodo(item, i));
-                            } catch (Exception ignored) {}
+                            try { list.add(parseTodo(arr.getJSONObject(i), i)); }
+                            catch (Exception ignored) {}
                         }
                     } else {
                         JSONObject parsed = new JSONObject(raw);
@@ -502,8 +482,7 @@ public class JarvisClient {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 10. fetchBriefing — GET /api/briefing/:user
-    //     Returns { briefing: "..." } or { briefing: null }
+    // 10. fetchBriefing
     // ─────────────────────────────────────────────────────────────────────────
 
     public static void fetchBriefing(String baseUrl, String userName, BriefingCallback cb) {
