@@ -183,7 +183,6 @@ public class HomeHudActivity extends AppCompatActivity {
 
         // ── Scrollable content (the whole page scrolls) ───────────────────
         ScrollView scroll = new ScrollView(this);
-        scroll.setScrollbarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setFillViewport(true);
         root.addView(scroll, new FrameLayout.LayoutParams(
@@ -233,7 +232,7 @@ public class HomeHudActivity extends AppCompatActivity {
         tvJarvis.setTextColor(Color.WHITE);
         tvJarvis.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(4.5f));
         tvJarvis.setLetterSpacing(0.3f);
-        tvJarvis.setTypeface(null, Typeface.LIGHT);
+        tvJarvis.setTypeface(null, Typeface.NORMAL);
         left.addView(tvJarvis);
 
         LinearLayout statusRow = new LinearLayout(this);
@@ -351,7 +350,7 @@ public class HomeHudActivity extends AppCompatActivity {
         mTvName.setText(rawName != null ? "Hello, " + rawName + (mSession.isOwner() ? " ★" : "") : "Hello");
         mTvName.setTextColor(Color.WHITE);
         mTvName.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(5.5f));
-        mTvName.setTypeface(null, Typeface.LIGHT);
+        mTvName.setTypeface(null, Typeface.NORMAL);
         col.addView(mTvName);
 
         mTvMemCount = new TextView(this);
@@ -390,7 +389,6 @@ public class HomeHudActivity extends AppCompatActivity {
         wrapper.addView(trayLabel);
 
         HorizontalScrollView hsv = new HorizontalScrollView(this);
-        hsv.setScrollbarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         hsv.setHorizontalScrollBarEnabled(false);
         hsv.setClipToPadding(false);
         hsv.setPadding(dp(20), 0, dp(20), 0);
