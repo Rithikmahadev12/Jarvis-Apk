@@ -210,12 +210,12 @@ public class HomeHudActivity extends AppCompatActivity {
         View dot = new View(this); android.graphics.drawable.GradientDrawable dg =
             new android.graphics.drawable.GradientDrawable();
         dg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        dg.setColor(Color.parseColor("#44FF88")); dot.setBackground(dg);
+        dg.setColor(Color.parseColor("#CC2200")); dot.setBackground(dg);
         LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(5), dp(5));
         dlp.rightMargin = dp(4); dot.setLayoutParams(dlp);
         pulse(dot); statusRow.addView(dot);
         TextView tvOnline = new TextView(this); tvOnline.setText("ONLINE");
-        tvOnline.setTextColor(Color.parseColor("#44FF88"));
+        tvOnline.setTextColor(Color.parseColor("#00AAFF"));
         tvOnline.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.5f));
         tvOnline.setLetterSpacing(0.1f);
         statusRow.addView(tvOnline); left.addView(statusRow);
@@ -232,7 +232,7 @@ public class HomeHudActivity extends AppCompatActivity {
         right.addView(mTvClock);
         mTvDate = new TextView(this);
         mTvDate.setText(new SimpleDateFormat("dd MMM", Locale.US).format(new Date()).toUpperCase(Locale.US));
-        mTvDate.setTextColor(Color.parseColor("#44FF88"));
+        mTvDate.setTextColor(Color.parseColor("#00AAFF"));
         mTvDate.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.5f));
         mTvDate.setTypeface(Typeface.MONOSPACE);
         mTvDate.setGravity(Gravity.END);
@@ -252,7 +252,7 @@ public class HomeHudActivity extends AppCompatActivity {
         topRow.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView tvLabel = new TextView(this); tvLabel.setText("NEXT CLEAR");
-        tvLabel.setTextColor(Color.parseColor("#44FF88"));
+        tvLabel.setTextColor(Color.parseColor("#00AAFF"));
         tvLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.9f));
         tvLabel.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         tvLabel.setLetterSpacing(0.1f);
@@ -287,9 +287,9 @@ public class HomeHudActivity extends AppCompatActivity {
         LinearLayout dataRow = new LinearLayout(this);
         dataRow.setOrientation(LinearLayout.HORIZONTAL);
         dataRow.setGravity(Gravity.CENTER_VERTICAL);
-        addDataChip(dataRow, "SLEEP", "--", "#4499FF");
-        addDataChip(dataRow, "HEART", "--", "#FF4488");
-        addDataChip(dataRow, "LAST", "--", "#FFD700");
+        addDataChip(dataRow, "SLEEP", "--", "#00AAFF");
+        addDataChip(dataRow, "HEART", "--", "#CC2200");
+        addDataChip(dataRow, "LAST", "--", "#00AAFF");
         strip.addView(dataRow);
         return strip;
     }
@@ -317,12 +317,12 @@ public class HomeHudActivity extends AppCompatActivity {
 
     // ── GLASSY BUTTON GRID (4 columns)
     private static final String[][] GRID_ITEMS = {
-        {"TALK",     "#CC2200"}, {"VAULT",    "#9945FF"},
-        {"MEMORY",   "#4499FF"}, {"REMIND",   "#FFD700"},
-        {"WEATHER",  "#00AAFF"}, {"CONTROL",  "#44FF88"},
-        {"TASKS",    "#FF6644"}, {"AGENTS",   "#FF44AA"},
-        {"SEARCH",   "#44FFCC"}, {"CAMERA",   "#4488FF"},
-        {"CALENDAR", "#FFAA00"}, {"SETTINGS", "#667788"},
+        {"TALK",     "#CC2200"}, {"VAULT",    "#CC2200"},
+        {"MEMORY",   "#00AAFF"}, {"REMIND",   "#CC2200"},
+        {"WEATHER",  "#00AAFF"}, {"CONTROL",  "#00AAFF"},
+        {"TASKS",    "#CC2200"}, {"AGENTS",   "#00AAFF"},
+        {"SEARCH",   "#00AAFF"}, {"CAMERA",   "#CC2200"},
+        {"CALENDAR", "#00AAFF"}, {"SETTINGS", "#00AAFF"},
     };
 
     private View buildButtonGrid() {
@@ -420,9 +420,9 @@ public class HomeHudActivity extends AppCompatActivity {
         inner.setPadding(dp(12), dp(4), dp(12), dp(4));
 
         String[][] chips = {
-            {"VOICE CMD", "#CC2200"}, {"LANDSCAPE", "#4499FF"},
-            {"SCAN NET", "#44FF88"}, {"HEALTH", "#FF4488"},
-            {"WALLET", "#9945FF"}, {"TASKS", "#FFD700"},
+            {"VOICE CMD", "#CC2200"}, {"LANDSCAPE", "#00AAFF"},
+            {"SCAN NET", "#00AAFF"}, {"HEALTH", "#CC2200"},
+            {"WALLET", "#00AAFF"}, {"TASKS", "#CC2200"},
         };
         for (String[] chip : chips) {
             TextView tv = new TextView(this);
@@ -616,13 +616,13 @@ public class HomeHudActivity extends AppCompatActivity {
         // {label, angleDeg, radiusFraction, colorHex}
         private static final Object[][] LABEL_DEFS = {
             {"WEATHER",    20f,  0.72f, "#00AAFF"},
-            {"CONTROL",    50f,  0.88f, "#44FF88"},
+            {"CONTROL",    50f,  0.88f, "#00AAFF"},
             {"ASTRONOMY",  85f,  0.78f, "#CC2200"},
-            {"PROC TASKS", 125f, 0.68f, "#FFD700"},
-            {"FREE TASKS", 155f, 0.85f, "#4499FF"},
-            {"EVENTS",     200f, 0.75f, "#FF4488"},
-            {"APP AGENT",  240f, 0.88f, "#44FFCC"},
-            {"VAULT",      280f, 0.72f, "#9945FF"},
+            {"PROC TASKS", 125f, 0.68f, "#00AAFF"},
+            {"FREE TASKS", 155f, 0.85f, "#00AAFF"},
+            {"EVENTS",     200f, 0.75f, "#CC2200"},
+            {"APP AGENT",  240f, 0.88f, "#00AAFF"},
+            {"VAULT",      280f, 0.72f, "#CC2200"},
             {"TALK",       320f, 0.82f, "#CC2200"},
         };
 
@@ -765,7 +765,7 @@ public class HomeHudActivity extends AppCompatActivity {
 
             // ── Orbiting small red/white dots on rings
             float[] dotRingR = {maxR * 0.78f, maxR * 0.64f, maxR * 0.50f};
-            int[]   dotCols  = {0xAACC2200, 0xAA00AAFF, 0xAAFFFFFF};
+            int[]   dotCols  = {0xAACC2200, 0xAA00AAFF, 0xAACC2200};
             for (int i = 0; i < 3; i++) {
                 double ang = Math.toRadians(mDotAngles[i]);
                 float dx = cx + (float)(Math.cos(ang) * dotRingR[i]);
@@ -929,7 +929,7 @@ public class HomeHudActivity extends AppCompatActivity {
             mBordP.setStyle(Paint.Style.STROKE); mBordP.setStrokeWidth(d); mBordP.setColor(Color.argb(40, 255,255,255));
             mBigP.setColor(Color.WHITE); mBigP.setTypeface(Typeface.DEFAULT_BOLD); mBigP.setLetterSpacing(0.02f);
             mSubP.setColor(Color.argb(100, 200,220,255)); mSubP.setTypeface(Typeface.MONOSPACE); mSubP.setLetterSpacing(0.06f);
-            mWalP.setColor(Color.parseColor("#9945FF")); mWalP.setTypeface(Typeface.MONOSPACE);
+            mWalP.setColor(Color.parseColor("#00AAFF")); mWalP.setTypeface(Typeface.MONOSPACE);
         }
 
         void setNameAndGreeting(String name, String greeting) { mName = name; mGreeting = greeting; invalidate(); }
@@ -1160,12 +1160,12 @@ public class HomeHudActivity extends AppCompatActivity {
         public void setOnLabelClickListener(LabelClickListener l) { mListener = l; }
 
         private static final Object[][] MINI_LABELS = {
-            {"GEO",    30f,  0.76f, "#4488FF"},
-            {"CENTRE", 90f,  0.60f, "#44FF88"},
+            {"GEO",    30f,  0.76f, "#00AAFF"},
+            {"CENTRE", 90f,  0.60f, "#00AAFF"},
             {"SEARCH", 150f, 0.76f, "#00AAFF"},
-            {"VAULT",  210f, 0.76f, "#9945FF"},
-            {"CAMERA", 270f, 0.60f, "#FF4488"},
-            {"WIFI",   330f, 0.76f, "#44FFCC"},
+            {"VAULT",  210f, 0.76f, "#CC2200"},
+            {"CAMERA", 270f, 0.60f, "#CC2200"},
+            {"WIFI",   330f, 0.76f, "#00AAFF"},
         };
 
         private final Paint mP     = new Paint(Paint.ANTI_ALIAS_FLAG);
