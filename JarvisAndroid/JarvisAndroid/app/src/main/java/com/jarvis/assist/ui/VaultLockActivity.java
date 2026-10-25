@@ -414,8 +414,10 @@ public class VaultLockActivity extends AppCompatActivity {
         mTvSubtitle.setText("ACCESS GRANTED");
         mTvSubtitle.setTextColor(Color.parseColor("#44FF88"));
         mRootLayout.postDelayed(() -> {
-            Intent i = new Intent(this, MainActivity.class);
-            i.putExtra("vault_unlocked", true);
+            // ✅ FIX: Route to HomeHudActivity (Iron Man portal) instead of MainActivity.
+            //    HomeHudActivity is the new home screen. MainActivity is reachable
+            //    from module taps inside HomeHudActivity.
+            Intent i = new Intent(this, HomeHudActivity.class);
             i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(i);
             finish();
