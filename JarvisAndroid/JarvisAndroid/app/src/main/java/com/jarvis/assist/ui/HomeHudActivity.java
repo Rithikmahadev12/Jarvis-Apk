@@ -1094,7 +1094,7 @@ public class HomeHudActivity extends AppCompatActivity {
             d = ctx.getResources().getDisplayMetrics().density;
             // gradient: transparent top → dark bottom
             mBgP.setStyle(Paint.Style.FILL);
-            mBigP.setColor(Color.argb(160, 255,255,255));
+            mBigP.setColor(Color.argb(175, 220,245,255));
             mBigP.setTypeface(Typeface.DEFAULT_BOLD);
             mBigP.setLetterSpacing(0.01f);
             // Name uses a much bigger text size
@@ -1288,7 +1288,7 @@ public class HomeHudActivity extends AppCompatActivity {
             float d=ctx.getResources().getDisplayMetrics().density;
             mP.setStyle(Paint.Style.STROKE); mP.setAntiAlias(true);
             mTxtP.setTypeface(Typeface.MONOSPACE); mTxtP.setAntiAlias(true); mTxtP.setTextAlign(Paint.Align.CENTER);
-            mArcP.setStyle(Paint.Style.STROKE); mArcP.setColor(Color.argb(80,204,34,0));
+            mArcP.setStyle(Paint.Style.STROKE); mArcP.setColor(Color.argb(80,0,204,255));
             mArcP.setStrokeWidth(2.5f*d); mArcP.setStrokeCap(Paint.Cap.ROUND); mArcP.setAntiAlias(true);
             mDotP.setStyle(Paint.Style.FILL); mDotP.setAntiAlias(true);
             mGlowP.setStyle(Paint.Style.FILL); mGlowP.setAntiAlias(true);
@@ -1339,7 +1339,7 @@ public class HomeHudActivity extends AppCompatActivity {
 
             // Red glow center
             RadialGradient rg=new RadialGradient(cx,cy,maxR*0.38f,
-                Color.argb((int)(120+mGlow*60),204,34,0),Color.TRANSPARENT,Shader.TileMode.CLAMP);
+                Color.argb((int)(120+mGlow*60),0,204,255),Color.TRANSPARENT,Shader.TileMode.CLAMP);
             mGlowP.setShader(rg);
             canvas.drawCircle(cx,cy,maxR*0.38f,mGlowP);
             mGlowP.setShader(null);
@@ -1347,7 +1347,7 @@ public class HomeHudActivity extends AppCompatActivity {
             // Center
             mDotP.setColor(Color.parseColor("#010308"));
             canvas.drawCircle(cx,cy,maxR*0.18f,mDotP);
-            mDotP.setColor(Color.argb((int)(180+mGlow*75),204,34,0));
+            mDotP.setColor(Color.argb((int)(180+mGlow*75),0,204,255));
             canvas.drawCircle(cx,cy,maxR*0.065f,mDotP);
 
             // Labels
