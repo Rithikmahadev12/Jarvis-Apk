@@ -186,7 +186,7 @@ public class HomeHudActivity extends AppCompatActivity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(8), dp(10), 0);
+        row.setPadding(dp(10), dp(5), dp(10), 0);
         // Gradient fade: opaque top, transparent bottom
         android.graphics.drawable.GradientDrawable hdrBg =
             new android.graphics.drawable.GradientDrawable(
@@ -203,7 +203,7 @@ public class HomeHudActivity extends AppCompatActivity {
         mTvClock = new TextView(this);
         mTvClock.setText("--:--");
         mTvClock.setTextColor(Color.WHITE);
-        mTvClock.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(3.8f));
+        mTvClock.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(3.2f));
         mTvClock.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         left.addView(mTvClock);
 
@@ -219,7 +219,7 @@ public class HomeHudActivity extends AppCompatActivity {
         TextView tvBrand = new TextView(this);
         tvBrand.setText("K.A.R.A");
         tvBrand.setTextColor(Color.parseColor("#CC2200"));
-        tvBrand.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.2f));
+        tvBrand.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
         tvBrand.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         tvBrand.setLetterSpacing(0.25f);
         tvBrand.setGravity(Gravity.CENTER);
@@ -363,7 +363,7 @@ public class HomeHudActivity extends AppCompatActivity {
         wChip.setBackground(wcBg);
         wChip.setPadding(dp(7), dp(3), dp(7), dp(3));
         TextView tvW = new TextView(this);
-        tvW.setText("31°");
+        tvW.setText("311°");
         tvW.setTextColor(Color.parseColor("#00AAFF"));
         tvW.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.0f));
         tvW.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
@@ -571,6 +571,23 @@ public class HomeHudActivity extends AppCompatActivity {
         bar.setBackgroundColor(Color.parseColor("#020406"));
 
         String[][] actions = {{"MSG","#CC2200"},{"SEARCH","#00AAFF"},{"CAMERA","#CC2200"},{"VAULT","#00AAFF"}};
+
+        // 10% percentage label — bottom left (matches reference image)
+        LinearLayout pctBox = new LinearLayout(this);
+        pctBox.setOrientation(LinearLayout.VERTICAL);
+        pctBox.setGravity(Gravity.CENTER_VERTICAL | Gravity.CENTER_HORIZONTAL);
+        pctBox.setPadding(dp(4), 0, dp(4), 0);
+        LinearLayout.LayoutParams pctLp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        pctLp.rightMargin = dp(2);
+        pctBox.setLayoutParams(pctLp);
+        TextView tvPct = new TextView(this);
+        tvPct.setText("10%");
+        tvPct.setTextColor(Color.parseColor("#00AAFF"));
+        tvPct.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
+        tvPct.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        pctBox.addView(tvPct);
+        bar.addView(pctBox);
 
         // Left two buttons
         addActionBtn(bar, actions[0]);
@@ -1123,7 +1140,7 @@ public class HomeHudActivity extends AppCompatActivity {
             float midY = h * 0.42f;
 
             // K.A.R.A tag line
-            mKaraP.setTextSize(h * 0.095f);
+            mKaraP.setTextSize(h * 0.11f);
             mKaraP.setLetterSpacing(0.08f);
             // Dot indicator
             Paint dotP = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1133,19 +1150,19 @@ public class HomeHudActivity extends AppCompatActivity {
             canvas.drawText("K.A.R.A  10 NEED YOU · I'VE —", tl + Math.round(6 * d), midY - h*0.09f, mKaraP);
 
             // Greeting line (small, dimmer)
-            mBigP.setTextSize(h * 0.19f);
-            canvas.drawText(mGreeting, tl, midY + h*0.06f, mBigP);
+            mBigP.setTextSize(h * 0.21f);
+            canvas.drawText(mGreeting, tl, midY + h*0.07f, mBigP);
 
             // NAME — massive, 3× bigger than greeting
-            mNameP.setTextSize(h * 0.46f);
-            canvas.drawText(mName, tl, midY + h*0.06f + h*0.49f, mNameP);
+            mNameP.setTextSize(h * 0.52f);
+            canvas.drawText(mName, tl, midY + h*0.06f + h*0.52f, mNameP);
 
             // Sub text
-            mSubP.setTextSize(h * 0.10f);
+            mSubP.setTextSize(h * 0.12f);
             canvas.drawText(mSub, tl, h - Math.round(6 * d), mSubP);
 
             // Wallet — top right
-            mWalP.setTextSize(h * 0.14f);
+            mWalP.setTextSize(h * 0.16f);
             mWalP.setTextAlign(Paint.Align.RIGHT);
             canvas.drawText(mWallet, w - tl, midY + h*0.05f, mWalP);
 
