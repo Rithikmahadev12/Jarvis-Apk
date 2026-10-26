@@ -115,6 +115,11 @@ public class MainActivity extends AppCompatActivity {
     // Greeting
     private TextView mTvWelcome;
     private TextView mTvMemoryCount;
+    // HUD dashboard extras (new layout)
+    private TextView mTvHudName;
+    private TextView mTvHudClock;
+    private TextView mTvHudDate;
+    private final android.os.Handler mClockHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
     // Tray
     private LinearLayout mTrayBtnTalk;
@@ -225,6 +230,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mClockHandler.removeCallbacksAndMessages(null);
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         // Re-enable only when we're on the dashboard
@@ -270,9 +281,13 @@ public class MainActivity extends AppCompatActivity {
         mAvatarCircle.setOnClickListener(v -> showAccountMenu());
         mHeaderSearchBtn.setOnClickListener(v -> showVaultSearchDialog());
 
-        // Greeting
+        // Greeting + HUD extras
         mTvWelcome     = findViewById(R.id.tv_welcome);
         mTvMemoryCount = findViewById(R.id.tv_memory_count);
+        mTvHudName     = findViewById(R.id.tv_hud_name);
+        mTvHudClock    = findViewById(R.id.tv_hud_clock);
+        mTvHudDate     = findViewById(R.id.tv_hud_date);
+        startHudClock();
 
         // Tray
         mTrayBtnTalk      = findViewById(R.id.tray_btn_talk);
@@ -575,7 +590,10 @@ public class MainActivity extends AppCompatActivity {
         String initial = (name != null && name.length() > 0)
                 ? String.valueOf(name.charAt(0)).toUpperCase() : "J";
         mTvAvatarInitial.setText(initial);
-        mTvWelcome.setText("Hello, " + name + (mSession.isOwner() ? " ★" : ""));
+        // HUD-style greeting (matches HomeHudActivity GlassCardView)
+        mTvWelcome.setText(getHudGreeting());
+        if (mTvHudName != null)
+            mTvHudName.setText(name != null ? name.toUpperCase(java.util.Locale.US) : "OPERATOR");
         mTvConnectedUrl.setText(mSession.getJarvisUrl());
         mTvSessionId.setText(mSession.getSessionId());
 
@@ -1162,6 +1180,29 @@ public class MainActivity extends AppCompatActivity {
             more.setPadding(0, dp(10), 0, 0);
             mMemoryItemsContainer.addView(more);
         }
+    }
+
+    // ── HUD clock ticker (mirrors HomeHudActivity.startClock)
+    private void startHudClock() {
+        mClockHandler.post(new Runnable() {
+            @Override public void run() {
+                java.text.SimpleDateFormat timeFmt = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.US);
+                java.text.SimpleDateFormat dateFmt = new java.text.SimpleDateFormat("dd MMM", java.util.Locale.US);
+                java.util.Date now = new java.util.Date();
+                if (mTvHudClock != null) mTvHudClock.setText(timeFmt.format(now));
+                if (mTvHudDate  != null) mTvHudDate.setText(dateFmt.format(now).toUpperCase(java.util.Locale.US));
+                if (mTvWelcome  != null) mTvWelcome.setText(getHudGreeting());
+                mClockHandler.postDelayed(this, 30_000);
+            }
+        });
+    }
+
+    private String getHudGreeting() {
+        int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        if (h < 12) return "GOOD MORNING,";
+        if (h < 17) return "GOOD AFTERNOON,";
+        if (h < 21) return "GOOD EVENING,";
+        return "GOOD NIGHT,";
     }
 
     private void updateMemoryCountLabel(int count) {
