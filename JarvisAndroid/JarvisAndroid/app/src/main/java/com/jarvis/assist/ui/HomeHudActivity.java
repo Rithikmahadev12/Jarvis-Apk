@@ -209,7 +209,7 @@ public class HomeHudActivity extends AppCompatActivity {
 
         mTvDate = new TextView(this);
         mTvDate.setText(new SimpleDateFormat("dd MMM", Locale.US).format(new Date()).toUpperCase(Locale.US));
-        mTvDate.setTextColor(Color.parseColor("#00AAFF"));
+        mTvDate.setTextColor(Color.parseColor("#00CCFF"));
         mTvDate.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.4f));
         mTvDate.setTypeface(Typeface.MONOSPACE);
         left.addView(mTvDate);
@@ -237,7 +237,7 @@ public class HomeHudActivity extends AppCompatActivity {
 
         TextView tvSys = new TextView(this);
         tvSys.setText("SYS ACTIVE");
-        tvSys.setTextColor(Color.parseColor("#00AAFF"));
+        tvSys.setTextColor(Color.parseColor("#00CCFF"));
         tvSys.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.3f));
         tvSys.setLetterSpacing(0.1f);
         tvSys.setTypeface(Typeface.MONOSPACE);
@@ -257,7 +257,7 @@ public class HomeHudActivity extends AppCompatActivity {
         pulse(dot); statusRow.addView(dot);
         TextView tvOnline = new TextView(this);
         tvOnline.setText("ONLINE");
-        tvOnline.setTextColor(Color.parseColor("#00AAFF"));
+        tvOnline.setTextColor(Color.parseColor("#00CCFF"));
         tvOnline.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.3f));
         tvOnline.setLetterSpacing(0.1f);
         tvOnline.setTypeface(Typeface.MONOSPACE);
@@ -275,10 +275,10 @@ public class HomeHudActivity extends AppCompatActivity {
         col.setGravity(Gravity.END);
 
         String[][] bars = {
-            {"RUN",   "62", "#00AAFF", "0.62"},
-            {"SLEEP", "45", "#00AAFF", "0.45"},
+            {"RUN",   "62", "#00CCFF", "0.62"},
+            {"SLEEP", "45", "#00CCFF", "0.45"},
             {"MOVE",  "78", "#CC2200", "0.78"},
-            {"VO2",   "55", "#00AAFF", "0.55"},
+            {"VO2",   "55", "#00CCFF", "0.55"},
         };
 
         for (String[] b : bars) {
@@ -358,13 +358,13 @@ public class HomeHudActivity extends AppCompatActivity {
             new android.graphics.drawable.GradientDrawable();
         wcBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
         wcBg.setCornerRadius(dp(4));
-        wcBg.setColor(Color.argb(40, 0, 170, 255));
-        wcBg.setStroke(dp(1), Color.argb(100, 0, 170, 255));
+        wcBg.setColor(Color.argb(40, 204, 34, 0));
+        wcBg.setStroke(dp(1), Color.argb(100, 204, 34, 0));
         wChip.setBackground(wcBg);
         wChip.setPadding(dp(7), dp(3), dp(7), dp(3));
         TextView tvW = new TextView(this);
         tvW.setText("311°");
-        tvW.setTextColor(Color.parseColor("#00AAFF"));
+        tvW.setTextColor(Color.parseColor("#CC2200"));
         tvW.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.0f));
         tvW.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         wChip.addView(tvW);
@@ -374,11 +374,11 @@ public class HomeHudActivity extends AppCompatActivity {
         wChip.setLayoutParams(wcLp);
         bar.addView(wChip);
 
-        addStatusPill(bar, "K.A.R.A",    "#00AAFF", false);
+        addStatusPill(bar, "K.A.R.A",    "#00CCFF", false);
         addStatusSep(bar);
-        addStatusPill(bar, "CONNECTED",  "#00AAFF", true);
+        addStatusPill(bar, "CONNECTED",  "#00CCFF", true);
         addStatusSep(bar);
-        addStatusPill(bar, "LOCAL",      "#00AAFF", true);
+        addStatusPill(bar, "LOCAL",      "#00CCFF", true);
 
         // Spacer
         View sp = new View(this);
@@ -472,7 +472,7 @@ public class HomeHudActivity extends AppCompatActivity {
 
         TextView tvLabel = new TextView(this);
         tvLabel.setText("NEXT CLEAR");
-        tvLabel.setTextColor(Color.parseColor("#00AAFF"));
+        tvLabel.setTextColor(Color.parseColor("#00CCFF"));
         tvLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.9f));
         tvLabel.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         tvLabel.setLetterSpacing(0.1f);
@@ -505,7 +505,7 @@ public class HomeHudActivity extends AppCompatActivity {
         android.graphics.drawable.GradientDrawable cbBg =
             new android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{Color.parseColor("#00AAFF"), Color.parseColor("#1100AAFF")});
+                new int[]{Color.parseColor("#00CCFF"), Color.parseColor("#1100CCFF")});
         cyanBar.setBackground(cbBg);
         LinearLayout.LayoutParams cbLp = new LinearLayout.LayoutParams(
             (int)(getResources().getDisplayMetrics().widthPixels * 0.47f), dp(2));
@@ -517,7 +517,7 @@ public class HomeHudActivity extends AppCompatActivity {
         LinearLayout dataRow = new LinearLayout(this);
         dataRow.setOrientation(LinearLayout.HORIZONTAL);
         dataRow.setGravity(Gravity.CENTER_VERTICAL);
-        addDataChip(dataRow, "C  —  SLEEP", "--", "#00AAFF");
+        addDataChip(dataRow, "C  —  SLEEP", "--", "#00CCFF");
         addDataChip(dataRow, "HEART RATE · LAST 24H", "--", "#CC2200");
         strip.addView(dataRow);
         return strip;
@@ -570,7 +570,7 @@ public class HomeHudActivity extends AppCompatActivity {
         bar.setPadding(dp(8), dp(6), dp(8), dp(10));
         bar.setBackgroundColor(Color.parseColor("#020406"));
 
-        String[][] actions = {{"MSG","#CC2200"},{"SEARCH","#00AAFF"},{"CAMERA","#CC2200"},{"VAULT","#00AAFF"}};
+        String[][] actions = {{"MSG","#CC2200"},{"SEARCH","#00CCFF"},{"CAMERA","#CC2200"},{"VAULT","#00CCFF"}};
 
         // 10% percentage label — bottom left (matches reference image)
         LinearLayout pctBox = new LinearLayout(this);
@@ -583,7 +583,7 @@ public class HomeHudActivity extends AppCompatActivity {
         pctBox.setLayoutParams(pctLp);
         TextView tvPct = new TextView(this);
         tvPct.setText("10%");
-        tvPct.setTextColor(Color.parseColor("#00AAFF"));
+        tvPct.setTextColor(Color.parseColor("#00CCFF"));
         tvPct.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
         tvPct.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         pctBox.addView(tvPct);
@@ -598,12 +598,12 @@ public class HomeHudActivity extends AppCompatActivity {
             new android.graphics.drawable.GradientDrawable();
         micBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
         micBg.setColor(Color.argb(18, 0, 170, 255));
-        micBg.setStroke(dp(2), Color.argb(120, 0, 170, 255));
+        micBg.setStroke(dp(2), Color.argb(120, 0, 204, 255));
         micCircle.setBackground(micBg);
         FrameLayout.LayoutParams micLp = new FrameLayout.LayoutParams(dp(52), dp(52));
         micCircle.setLayoutParams(micLp);
         micFrame.addView(micCircle);
-        GlassIconView micIcon = new GlassIconView(this, "TALK", Color.parseColor("#00AAFF"));
+        GlassIconView micIcon = new GlassIconView(this, "TALK", Color.parseColor("#00CCFF"));
         micIcon.setLayoutParams(new FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER));
         micFrame.addView(micIcon);
         TextView micLbl = new TextView(this);
@@ -774,13 +774,13 @@ public class HomeHudActivity extends AppCompatActivity {
         public void setOnLabelClickListener(LabelClickListener l) { mListener = l; }
 
         private static final Object[][] LABEL_DEFS = {
-            {"WEATHER",    20f,  0.72f, "#00AAFF"},
-            {"CONTROL",    50f,  0.88f, "#00AAFF"},
+            {"WEATHER",    20f,  0.72f, "#00CCFF"},
+            {"CONTROL",    50f,  0.88f, "#00CCFF"},
             {"ASTRONOMY",  85f,  0.78f, "#CC2200"},
-            {"PROC TASKS", 125f, 0.68f, "#00AAFF"},
-            {"FREE TASKS", 155f, 0.85f, "#00AAFF"},
+            {"PROC TASKS", 125f, 0.68f, "#00CCFF"},
+            {"FREE TASKS", 155f, 0.85f, "#00CCFF"},
             {"EVENTS",     200f, 0.75f, "#CC2200"},
-            {"APP AGENT",  240f, 0.88f, "#00AAFF"},
+            {"APP AGENT",  240f, 0.88f, "#00CCFF"},
             {"VAULT",      280f, 0.72f, "#CC2200"},
             {"TALK",       320f, 0.82f, "#CC2200"},
         };
@@ -819,7 +819,7 @@ public class HomeHudActivity extends AppCompatActivity {
             mDotP.setStyle(Paint.Style.FILL); mDotP.setAntiAlias(true);
 
             // arc 0,4 = red; 1 = cyan; 2 = white-dim; 3 = cyan-dim
-            int[] arcCols = {0x88CC2200, 0x6600AAFF, 0x33FFFFFF, 0x2200CCFF, 0x66CC2200};
+            int[] arcCols = {0x88CC2200, 0x6600CCFF, 0x33FFFFFF, 0x2200CCFF, 0x66CC2200};
             float[] arcWds = {3f, 2f, 1.5f, 1.8f, 2.5f};
             for (int i = 0; i < 5; i++) {
                 mArcP[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -919,7 +919,7 @@ public class HomeHudActivity extends AppCompatActivity {
 
             // Orbiting dots
             float[] dotRingR = {maxR*0.78f, maxR*0.64f, maxR*0.50f};
-            int[] dotCols    = {0xCCCC2200, 0xCC00AAFF, 0xCCCC2200};
+            int[] dotCols    = {0xCCCC2200, 0xCC00CCFF, 0xCCCC2200};
             for (int i = 0; i < 3; i++) {
                 double ang = Math.toRadians(mDotAngles[i]);
                 float dx = cx + (float)(Math.cos(ang)*dotRingR[i]);
@@ -1009,7 +1009,7 @@ public class HomeHudActivity extends AppCompatActivity {
                 float chipLeft = lx-chipW/2f, chipTop = ly-chipH/2f;
 
                 RectF chipRect = new RectF(chipLeft, chipTop, chipLeft+chipW, chipTop+chipH);
-                mChipP.setColor(Color.argb(55, cr, cg, cb));
+                mChipP.setColor(Color.argb(75, cr, cg, cb));
                 canvas.drawRoundRect(chipRect, 5*d, 5*d, mChipP);
                 Paint borderP = new Paint(Paint.ANTI_ALIAS_FLAG);
                 borderP.setStyle(Paint.Style.STROKE);
@@ -1101,10 +1101,10 @@ public class HomeHudActivity extends AppCompatActivity {
             mNameP.setColor(Color.WHITE);
             mNameP.setTypeface(Typeface.DEFAULT_BOLD);
             mNameP.setLetterSpacing(0.02f);
-            mSubP.setColor(Color.argb(90, 180,200,255));
+            mSubP.setColor(Color.argb(120, 180,210,255));
             mSubP.setTypeface(Typeface.MONOSPACE);
             mSubP.setLetterSpacing(0.06f);
-            mWalP.setColor(Color.parseColor("#00AAFF"));
+            mWalP.setColor(Color.parseColor("#00CCFF"));
             mWalP.setTypeface(Typeface.MONOSPACE);
             mKaraP.setColor(Color.parseColor("#CC2200"));
             mKaraP.setTypeface(Typeface.MONOSPACE);
@@ -1176,7 +1176,7 @@ public class HomeHudActivity extends AppCompatActivity {
             canvas.drawCircle(ccx, ccy, cr2, cirBg);
             Paint cirFg = new Paint(Paint.ANTI_ALIAS_FLAG);
             cirFg.setStyle(Paint.Style.STROKE); cirFg.setStrokeWidth(2.5f*d);
-            cirFg.setColor(Color.argb((int)(160+mPulse*70),0,170,255));
+            cirFg.setColor(Color.argb((int)(160+mPulse*70),0,204,255));
             cirFg.setStrokeCap(Paint.Cap.ROUND);
             canvas.drawArc(new RectF(ccx-cr2,ccy-cr2,ccx+cr2,ccy+cr2), -90f, 260f, false, cirFg);
             Paint cirTxt = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1264,12 +1264,12 @@ public class HomeHudActivity extends AppCompatActivity {
         public void setOnLabelClickListener(LabelClickListener l) { mListener = l; }
 
         private static final Object[][] MINI_LABELS = {
-            {"GEO",    30f,  0.76f, "#00AAFF"},
-            {"CENTRE", 90f,  0.60f, "#00AAFF"},
-            {"SEARCH", 150f, 0.76f, "#00AAFF"},
+            {"GEO",    30f,  0.76f, "#00CCFF"},
+            {"CENTRE", 90f,  0.60f, "#00CCFF"},
+            {"SEARCH", 150f, 0.76f, "#00CCFF"},
             {"VAULT",  210f, 0.76f, "#CC2200"},
             {"CAMERA", 270f, 0.60f, "#CC2200"},
-            {"WIFI",   330f, 0.76f, "#00AAFF"},
+            {"WIFI",   330f, 0.76f, "#00CCFF"},
         };
 
         private final Paint mP    = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1366,7 +1366,7 @@ public class HomeHudActivity extends AppCompatActivity {
                 float cL=lx-tw/2f-padH,cT=ly-th/2f-padV;
                 RectF chipR=new RectF(cL,cT,cL+tw+padH*2,cT+th+padV*2);
                 Paint bg2=new Paint(Paint.ANTI_ALIAS_FLAG); bg2.setStyle(Paint.Style.FILL);
-                bg2.setColor(Color.argb(50,cr2,cg2,cb2));
+                bg2.setColor(Color.argb(70,cr2,cg2,cb2));
                 canvas.drawRoundRect(chipR,4*d,4*d,bg2);
                 Paint brd=new Paint(Paint.ANTI_ALIAS_FLAG); brd.setStyle(Paint.Style.STROKE);
                 brd.setColor(Color.argb(150,cr2,cg2,cb2)); brd.setStrokeWidth(1.2f*d);
