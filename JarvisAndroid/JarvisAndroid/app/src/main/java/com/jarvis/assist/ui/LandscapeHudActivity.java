@@ -6,10 +6,15 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RadialGradient;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.media.AudioAttributes;
+import android.media.SoundPool;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -19,6 +24,7 @@ import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
@@ -38,57 +44,53 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * LandscapeHudActivity — Iron Man landscape HUD.
+ * LandscapeHudActivity — OSO AugmaOS landscape HUD, pixel-accurate Jarvis edition.
  *
- * RIGHT panel: SpinningOrbWheelView — a radial sector wheel (same Iron Man style as portrait)
- *              with sectors: BRIEF · PHONE · HEALTH · CAMERA · VAULT · KEY · WIFI
- *              Selecting a sector on the right wheel swaps the LEFT panel page.
+ * Layout:
+ *   TOP: 2px red accent line + tick ruler + clock (top-right)
+ *   BODY: LEFT 60% swipeable pages | 1px divider | RIGHT 40% SpinningOrbWheelView
+ *   BOTTOM: 36dp nav bar with page tabs + mic + page counter
  *
- * LEFT panel: Swipeable pages (0=STATUS, 1=PHONE, 2=WIFI, 3=MEMORY, 4=REMINDERS)
- *             Matches reference images 4 & 5 exactly.
+ * Pages: STATUS · PHONE · WIFI · MEMORY · REMINDERS
+ * Sector wheel: BRIEF · PHONE · HEALTH · CAMERA · KEY · VAULT · WIFI
+ * Every tap plays Voice.wav click.
+ * Scan-line overlay on entire root for the OSO CRT aesthetic.
  */
 public class LandscapeHudActivity extends AppCompatActivity {
 
+    // ── fonts (shared with HomeHudActivity statics) ──────────────────────
+    private static Typeface sMono, sBrand, sRaj;
+
     private SessionStore mSession;
-    private final Handler mClockHandler = new Handler(Looper.getMainLooper());
+    private final Handler mClockH = new Handler(Looper.getMainLooper());
+    private SoundPool mSoundPool;
+    private int mSoundId = -1;
+    private boolean mSoundLoaded;
 
-    float SS;
-    float SD;
+    // density helpers
+    private float SD, SS;
 
-    // Header refs
+    // header
     private TextView mTvClock;
 
-    // Left page content refs
-    private TextView mTvGreetingLine;
-    private TextView mTvUserNameBig;
-    private TextView mTvDateLine;
-    private TextView[] mLeftVals = new TextView[5];
-
-    // Right panel wallet/battery
-    private TextView mTvWalletBig;
-    private TextView mTvWalletSub;
-    private TextView mTvBattNum;
-    private TextView mTvMsg;
-    private TextView mTvCal;
-    private TextView mTvDone;
-
-    // Swipeable left panel
+    // left panel pages
     private static final int PAGE_COUNT = 5;
-    private int mCurrentPage = 0;
+    private static final String[] PAGE_LABELS = {"STATUS","PHONE","WIFI","MEMORY","REMINDERS"};
+    private static final int[] PAGE_NUMS = {1,2,12,3,4};
     private LinearLayout[] mPages = new LinearLayout[PAGE_COUNT];
-    private FrameLayout mLeftPanelContainer;
-    private TextView mTvPageLabel;
-    private TextView mTvPageNum;
-    private GestureDetector mGestureDetector;
-    private LinearLayout mMemoryList;
-    private LinearLayout mRemindersList;
+    private int mCurrentPage = 0;
+    private FrameLayout mLeftContainer;
+    private TextView mTvPageLabel, mTvPageNum, mTvPageIndicator;
+    private GestureDetector mGesture;
 
-    private static final String[] PAGE_LABELS    = {"STATUS","PHONE","WIFI / NET","MEMORY","REMINDERS"};
-    private static final int[]    PAGE_LABEL_NUMS = {1, 2, 12, 3, 4};
+    // live data refs
+    private TextView mTvGreeting, mTvUserName, mTvDateLine;
+    private LinearLayout mMemList, mRemList;
 
-    // Right orb wheel
-    private SpinningOrbWheelView mOrbWheel;
-    private TextView mTvPageIndicator;
+    // right orb wheel
+    private OrbWheelView mOrbWheel;
+
+    // ── lifecycle ────────────────────────────────────────────────────────
 
     @Override
     protected void onCreate(Bundle saved) {
@@ -102,11 +104,13 @@ public class LandscapeHudActivity extends AppCompatActivity {
 
         mSession = SessionStore.get(this);
         DisplayMetrics dm = getResources().getDisplayMetrics();
-        int shortSide = Math.min(dm.widthPixels, dm.heightPixels);
-        SS = shortSide / 100f / dm.scaledDensity;
         SD = dm.density;
+        SS = Math.min(dm.widthPixels, dm.heightPixels) / 100f / dm.scaledDensity;
 
-        mGestureDetector = new GestureDetector(this, new PageSwipeListener());
+        loadFonts();
+        initSound();
+        mGesture = new GestureDetector(this, new SwipeListener());
+
         buildUI();
         startClock();
         loadData();
@@ -114,11 +118,38 @@ public class LandscapeHudActivity extends AppCompatActivity {
 
     @Override protected void onDestroy() {
         super.onDestroy();
-        mClockHandler.removeCallbacksAndMessages(null);
+        mClockH.removeCallbacksAndMessages(null);
+        if (mSoundPool != null) mSoundPool.release();
     }
 
-    float sp(float pct) { return SS * pct; }
+    private void loadFonts() {
+        try {
+            sMono  = Typeface.createFromAsset(getAssets(), "fonts/sharetechmono_400.ttf");
+            sBrand = Typeface.createFromAsset(getAssets(), "fonts/rajdhani_700.ttf");
+            sRaj   = Typeface.createFromAsset(getAssets(), "fonts/rajdhani_400.ttf");
+        } catch (Exception ignored) {
+            sMono  = Typeface.MONOSPACE;
+            sBrand = Typeface.DEFAULT_BOLD;
+            sRaj   = Typeface.DEFAULT;
+        }
+    }
+
+    private void initSound() {
+        AudioAttributes a = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+        mSoundPool = new SoundPool.Builder().setMaxStreams(4).setAudioAttributes(a).build();
+        mSoundPool.setOnLoadCompleteListener((sp, id, s) -> mSoundLoaded = (s == 0));
+        try { mSoundId = mSoundPool.load(getAssets().openFd("Voice.wav"), 1); }
+        catch (Exception ignored) {}
+    }
+
+    private void click() {
+        if (mSoundLoaded && mSoundId != -1) mSoundPool.play(mSoundId, 0.5f, 0.5f, 1, 0, 1f);
+    }
+
     int dp(float v) { return Math.round(v * SD); }
+    float sp(float p) { return SS * p; }
 
     // ── BUILD UI ─────────────────────────────────────────────────────────
 
@@ -126,7 +157,14 @@ public class LandscapeHudActivity extends AppCompatActivity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.parseColor("#030508"));
 
-        // Red accent line top
+        // Scan-line overlay (CRT aesthetic — same as OSO)
+        ScanLineView scan = new ScanLineView(this);
+        FrameLayout.LayoutParams scanLp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+        scan.setLayoutParams(scanLp);
+        // added after everything else so it draws on top
+
+        // Red accent top line
         View redLine = new View(this);
         redLine.setBackgroundColor(Color.parseColor("#CC2200"));
         FrameLayout.LayoutParams rlLp = new FrameLayout.LayoutParams(
@@ -138,7 +176,7 @@ public class LandscapeHudActivity extends AppCompatActivity {
         TickRulerView ruler = new TickRulerView(this);
         FrameLayout.LayoutParams rulerLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, dp(22));
-        rulerLp.gravity   = Gravity.TOP;
+        rulerLp.gravity = Gravity.TOP;
         rulerLp.topMargin = dp(2);
         root.addView(ruler, rulerLp);
 
@@ -147,52 +185,62 @@ public class LandscapeHudActivity extends AppCompatActivity {
         mTvClock.setText("00:00");
         mTvClock.setTextColor(Color.WHITE);
         mTvClock.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(4.2f));
-        mTvClock.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        FrameLayout.LayoutParams clockLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT);
-        clockLp.gravity     = Gravity.TOP | Gravity.END;
-        clockLp.topMargin   = dp(2);
-        clockLp.rightMargin = dp(12);
-        root.addView(mTvClock, clockLp);
+        mTvClock.setTypeface(sMono, Typeface.BOLD);
+        FrameLayout.LayoutParams clkLp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        clkLp.gravity = Gravity.TOP | Gravity.END;
+        clkLp.topMargin = dp(2);
+        clkLp.rightMargin = dp(14);
+        root.addView(mTvClock, clkLp);
 
-        // Main 2-panel row
+        // JARVIS brand label center-top
+        TextView tvBrand = new TextView(this);
+        tvBrand.setText("JARVIS");
+        tvBrand.setTextColor(Color.parseColor("#CC2200"));
+        tvBrand.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.8f));
+        tvBrand.setTypeface(sBrand, Typeface.BOLD);
+        tvBrand.setLetterSpacing(0.22f);
+        FrameLayout.LayoutParams brandLp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        brandLp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        brandLp.topMargin = dp(3);
+        root.addView(tvBrand, brandLp);
+
+        // Main body panels
         LinearLayout panels = new LinearLayout(this);
         panels.setOrientation(LinearLayout.HORIZONTAL);
         FrameLayout.LayoutParams panelsLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT);
-        panelsLp.topMargin    = dp(24);
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+        panelsLp.topMargin = dp(24);
         panelsLp.bottomMargin = dp(36);
-        panels.setLayoutParams(panelsLp);
+        root.addView(panels, panelsLp);
 
-        // LEFT 62% — swipeable pages
-        mLeftPanelContainer = buildSwipeableLeftArea();
-        LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 0.62f);
-        mLeftPanelContainer.setLayoutParams(llp);
-        panels.addView(mLeftPanelContainer);
+        // LEFT 60%
+        mLeftContainer = buildLeftArea();
+        panels.addView(mLeftContainer, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 0.60f));
 
         // Divider
-        View divider = new View(this);
-        divider.setBackgroundColor(Color.parseColor("#22FFFFFF"));
-        panels.addView(divider, new LinearLayout.LayoutParams(dp(1),
+        View div = new View(this);
+        div.setBackgroundColor(Color.parseColor("#22FFFFFF"));
+        panels.addView(div, new LinearLayout.LayoutParams(dp(1),
                 LinearLayout.LayoutParams.MATCH_PARENT));
 
-        // RIGHT 38% — spinning orb wheel
-        mOrbWheel = new SpinningOrbWheelView(this);
+        // RIGHT 40% — orb wheel
+        mOrbWheel = new OrbWheelView(this);
         mOrbWheel.setOnSectorClickListener(idx -> {
-            // Map right-wheel sector to left page
-            int[] sectorToPage = {0, 1, 0, 0, 1, 0, 2}; // BRIEF->0, PHONE->1, WIFI->2, others->0
-            int page = idx < sectorToPage.length ? sectorToPage[idx] : 0;
-            if (idx == 6) page = 2;  // WIFI
-            navigateToPage(page);
+            click();
+            int[] map = {0, 1, 0, 0, 0, 1, 2}; // BRIEF/HEALTH/CAMERA/KEY→0, PHONE→1, VAULT→1, WIFI→2
+            navigateTo(idx < map.length ? map[idx] : 0);
         });
-        panels.addView(mOrbWheel, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 0.38f));
+        panels.addView(mOrbWheel, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 0.40f));
 
-        root.addView(panels);
         root.addView(buildBottomBar());
+
+        // Scan overlay last (draws on top, pointer events pass through)
+        root.addView(scan, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
         setContentView(root);
         showPage(0);
@@ -200,8 +248,8 @@ public class LandscapeHudActivity extends AppCompatActivity {
 
     // ── LEFT SWIPEABLE AREA ──────────────────────────────────────────────
 
-    private FrameLayout buildSwipeableLeftArea() {
-        FrameLayout container = new FrameLayout(this);
+    private FrameLayout buildLeftArea() {
+        FrameLayout c = new FrameLayout(this);
 
         mPages[0] = buildPageStatus();
         mPages[1] = buildPagePhone();
@@ -209,30 +257,27 @@ public class LandscapeHudActivity extends AppCompatActivity {
         mPages[3] = buildPageMemory();
         mPages[4] = buildPageReminders();
 
-        for (LinearLayout page : mPages) {
-            page.setVisibility(View.GONE);
-            container.addView(page, new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT));
+        for (LinearLayout p : mPages) {
+            p.setVisibility(View.GONE);
+            c.addView(p, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         }
 
         // Page label overlay
         LinearLayout labelRow = new LinearLayout(this);
         labelRow.setOrientation(LinearLayout.HORIZONTAL);
         labelRow.setGravity(Gravity.CENTER_VERTICAL);
-        FrameLayout.LayoutParams labelLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT);
-        labelLp.gravity    = Gravity.TOP | Gravity.START;
-        labelLp.topMargin  = dp(4);
-        labelLp.leftMargin = dp(10);
-        labelRow.setLayoutParams(labelLp);
+        FrameLayout.LayoutParams llp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        llp.gravity = Gravity.TOP | Gravity.START;
+        llp.topMargin = dp(4); llp.leftMargin = dp(10);
+        labelRow.setLayoutParams(llp);
 
         mTvPageNum = new TextView(this);
         mTvPageNum.setText("01");
         mTvPageNum.setTextColor(Color.parseColor("#CC2200"));
         mTvPageNum.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(3.0f));
-        mTvPageNum.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        mTvPageNum.setTypeface(sMono, Typeface.BOLD);
         mTvPageNum.setPadding(0, 0, dp(8), 0);
         labelRow.addView(mTvPageNum);
 
@@ -243,7 +288,7 @@ public class LandscapeHudActivity extends AppCompatActivity {
         mTvPageLabel.setLetterSpacing(0.12f);
         mTvPageLabel.setTypeface(null, Typeface.BOLD);
         labelRow.addView(mTvPageLabel);
-        container.addView(labelRow);
+        c.addView(labelRow);
 
         // LIVE badge
         TextView tvLive = new TextView(this);
@@ -253,44 +298,34 @@ public class LandscapeHudActivity extends AppCompatActivity {
         tvLive.setBackground(pill(Color.parseColor("#CC2200")));
         tvLive.setPadding(dp(7), dp(2), dp(7), dp(2));
         FrameLayout.LayoutParams liveLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT);
-        liveLp.gravity    = Gravity.TOP | Gravity.END;
-        liveLp.topMargin  = dp(4);
-        liveLp.rightMargin = dp(8);
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        liveLp.gravity = Gravity.TOP | Gravity.END;
+        liveLp.topMargin = dp(4); liveLp.rightMargin = dp(8);
         tvLive.setLayoutParams(liveLp);
         pulseView(tvLive);
-        container.addView(tvLive);
+        c.addView(tvLive);
 
         // Swipe arrows
-        TextView arrowLeft = new TextView(this);
-        arrowLeft.setText("◀");
-        arrowLeft.setTextColor(Color.parseColor("#33FFFFFF"));
-        arrowLeft.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.5f));
-        arrowLeft.setClickable(true);
-        arrowLeft.setFocusable(true);
-        arrowLeft.setOnClickListener(v -> navigatePage(-1));
-        FrameLayout.LayoutParams alLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-        alLp.gravity    = Gravity.CENTER_VERTICAL | Gravity.START;
-        alLp.leftMargin = dp(2);
-        container.addView(arrowLeft, alLp);
+        addArrow(c, "◀", Gravity.CENTER_VERTICAL | Gravity.START, dp(2), v -> { click(); navigatePage(-1); });
+        addArrow(c, "▶", Gravity.CENTER_VERTICAL | Gravity.END,   dp(2), v -> { click(); navigatePage(+1); });
 
-        TextView arrowRight = new TextView(this);
-        arrowRight.setText("▶");
-        arrowRight.setTextColor(Color.parseColor("#33FFFFFF"));
-        arrowRight.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.5f));
-        arrowRight.setClickable(true);
-        arrowRight.setFocusable(true);
-        arrowRight.setOnClickListener(v -> navigatePage(+1));
-        FrameLayout.LayoutParams arLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-        arLp.gravity     = Gravity.CENTER_VERTICAL | Gravity.END;
-        arLp.rightMargin = dp(2);
-        container.addView(arrowRight, arLp);
+        c.setOnTouchListener((v, e) -> mGesture.onTouchEvent(e));
+        return c;
+    }
 
-        container.setOnTouchListener((v, event) -> mGestureDetector.onTouchEvent(event));
-        return container;
+    private void addArrow(FrameLayout parent, String txt, int gravity, int margin, View.OnClickListener cl) {
+        TextView tv = new TextView(this);
+        tv.setText(txt);
+        tv.setTextColor(Color.parseColor("#33FFFFFF"));
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.5f));
+        tv.setClickable(true); tv.setFocusable(true);
+        tv.setOnClickListener(cl);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        lp.gravity = gravity;
+        if ((gravity & Gravity.START) != 0) lp.leftMargin = margin;
+        else lp.rightMargin = margin;
+        parent.addView(tv, lp);
     }
 
     private void showPage(int idx) {
@@ -299,22 +334,17 @@ public class LandscapeHudActivity extends AppCompatActivity {
             mPages[i].setVisibility(i == idx ? View.VISIBLE : View.GONE);
         mCurrentPage = idx;
         if (mTvPageLabel != null) mTvPageLabel.setText(PAGE_LABELS[idx]);
-        if (mTvPageNum   != null) mTvPageNum.setText(
-                String.format(Locale.US, "%02d", PAGE_LABEL_NUMS[idx]));
+        if (mTvPageNum   != null) mTvPageNum.setText(String.format(Locale.US, "%02d", PAGE_NUMS[idx]));
         if (mTvPageIndicator != null)
-            mTvPageIndicator.setText(
-                String.format(Locale.US, "%02d / %02d", idx + 1, PAGE_COUNT));
+            mTvPageIndicator.setText(String.format(Locale.US, "%02d / %02d", idx + 1, PAGE_COUNT));
     }
 
-    private void navigatePage(int delta) {
-        int next = (mCurrentPage + delta + PAGE_COUNT) % PAGE_COUNT;
-        navigateToPage(next);
-    }
+    private void navigatePage(int delta) { navigateTo((mCurrentPage + delta + PAGE_COUNT) % PAGE_COUNT); }
 
-    private void navigateToPage(int next) {
+    private void navigateTo(int next) {
         if (next == mCurrentPage) return;
         int delta = next - mCurrentPage;
-        float startX = delta > 0 ? mLeftPanelContainer.getWidth() : -mLeftPanelContainer.getWidth();
+        float startX = delta > 0 ? mLeftContainer.getWidth() : -mLeftContainer.getWidth();
         mPages[next].setTranslationX(startX);
         mPages[next].setVisibility(View.VISIBLE);
         ObjectAnimator out = ObjectAnimator.ofFloat(mPages[mCurrentPage], "translationX", 0f, -startX);
@@ -332,20 +362,17 @@ public class LandscapeHudActivity extends AppCompatActivity {
         out.start(); in.start();
         mCurrentPage = next;
         if (mTvPageLabel != null) mTvPageLabel.setText(PAGE_LABELS[next]);
-        if (mTvPageNum   != null) mTvPageNum.setText(
-                String.format(Locale.US, "%02d", PAGE_LABEL_NUMS[next]));
+        if (mTvPageNum   != null) mTvPageNum.setText(String.format(Locale.US, "%02d", PAGE_NUMS[next]));
         if (mTvPageIndicator != null)
-            mTvPageIndicator.setText(
-                String.format(Locale.US, "%02d / %02d", next + 1, PAGE_COUNT));
+            mTvPageIndicator.setText(String.format(Locale.US, "%02d / %02d", next + 1, PAGE_COUNT));
     }
 
-    class PageSwipeListener extends GestureDetector.SimpleOnGestureListener {
-        @Override
-        public boolean onFling(MotionEvent e1, MotionEvent e2, float vX, float vY) {
+    class SwipeListener extends GestureDetector.SimpleOnGestureListener {
+        @Override public boolean onFling(MotionEvent e1, MotionEvent e2, float vX, float vY) {
             if (e1 == null || e2 == null) return false;
             float dX = e2.getX() - e1.getX(), dY = e2.getY() - e1.getY();
             if (Math.abs(dX) > Math.abs(dY) && Math.abs(dX) > 80 && Math.abs(vX) > 100) {
-                navigatePage(dX > 0 ? -1 : +1); return true;
+                click(); navigatePage(dX > 0 ? -1 : +1); return true;
             }
             return false;
         }
@@ -354,178 +381,101 @@ public class LandscapeHudActivity extends AppCompatActivity {
     // ── PAGE 0 — STATUS ──────────────────────────────────────────────────
 
     private LinearLayout buildPageStatus() {
-        LinearLayout p = new LinearLayout(this);
-        p.setOrientation(LinearLayout.VERTICAL);
-        p.setPadding(dp(16), dp(34), dp(12), dp(6));
+        LinearLayout p = page();
 
-        MiniArcView miniArc = new MiniArcView(this);
-        int arcSz = dp(44);
-        LinearLayout.LayoutParams arcLp = new LinearLayout.LayoutParams(arcSz, arcSz);
+        // Mini spinning arc
+        MiniArcView arc = new MiniArcView(this);
+        LinearLayout.LayoutParams arcLp = new LinearLayout.LayoutParams(dp(44), dp(44));
         arcLp.bottomMargin = dp(4);
-        miniArc.setLayoutParams(arcLp);
-        p.addView(miniArc);
+        p.addView(arc, arcLp);
 
-        mTvGreetingLine = makeText(p, "", sp(2.6f), Color.parseColor("#77FFFFFF"), Typeface.BOLD);
-        mTvGreetingLine.setLetterSpacing(0.1f);
+        mTvGreeting = mono(p, "", sp(2.6f), 0xAAFFFFFF, Typeface.BOLD);
+        mTvGreeting.setLetterSpacing(0.1f);
 
-        mTvUserNameBig = makeText(p, "OPERATOR", sp(5.0f), Color.WHITE, Typeface.BOLD);
-        mTvUserNameBig.setMaxLines(1);
-        mTvUserNameBig.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        mTvUserName = mono(p, "OPERATOR", sp(5.0f), Color.WHITE, Typeface.BOLD);
+        mTvUserName.setMaxLines(1);
+        mTvUserName.setEllipsize(android.text.TextUtils.TruncateAt.END);
 
-        mTvDateLine = makeText(p, "", sp(1.9f), Color.parseColor("#44FF88"), -1);
-        mTvDateLine.setTypeface(Typeface.MONOSPACE);
+        mTvDateLine = mono(p, "", sp(1.9f), Color.parseColor("#44FF88"), Typeface.NORMAL);
         LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         dlp.bottomMargin = dp(4);
         mTvDateLine.setLayoutParams(dlp);
 
-        makeText(p, "SYSTEM ACTIVE  ·  ONLINE", sp(1.7f), Color.parseColor("#224455"), -1)
+        mono(p, "SYSTEM ACTIVE  ·  ONLINE", sp(1.7f), Color.parseColor("#224455"), Typeface.NORMAL)
                 .setLetterSpacing(0.1f);
-        addDivider(p);
+        divider(p);
 
-        String[] labels   = {"MEMORY","VAULT","SESSION","NETWORK","SYNC"};
-        String[] initVals = {"—","LOCKED","—","ONLINE","LIVE"};
-        int[]    colors   = {0xFF44FF88,0xFFCC2200,0xFF4499FF,0xFF44FF88,0xFFFFD700};
+        String[] labels = {"MEMORY","VAULT","SESSION","NETWORK","SYNC"};
+        String[] vals   = {"—","LOCKED","—","ONLINE","LIVE"};
+        int[] cols      = {0xFF44FF88,0xFFCC2200,0xFF4499FF,0xFF44FF88,0xFFFFD700};
+
         for (int i = 0; i < labels.length; i++) {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            rLp.topMargin = dp(4);
-            row.setLayoutParams(rLp);
+            rlp.topMargin = dp(4);
+            row.setLayoutParams(rlp);
 
-            TextView tvNum = new TextView(this);
-            tvNum.setText(String.format(Locale.US, "%02d", i + 1));
-            tvNum.setTextColor(Color.parseColor("#22FFFFFF"));
-            tvNum.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.7f));
-            tvNum.setTypeface(Typeface.MONOSPACE);
-            tvNum.setPadding(0, 0, dp(5), 0);
-            row.addView(tvNum);
+            TextView tvN = mono(null, String.format(Locale.US, "%02d", i + 1), sp(1.7f), 0x22FFFFFF, Typeface.NORMAL);
+            tvN.setPadding(0, 0, dp(5), 0);
+            row.addView(tvN);
 
-            View dot = new View(this);
-            android.graphics.drawable.GradientDrawable dg =
-                    new android.graphics.drawable.GradientDrawable();
-            dg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-            dg.setColor(colors[i]);
-            dot.setBackground(dg);
+            View dot = oval(cols[i], dp(5)); oval(dot, dp(6));
             LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(5), dp(5));
-            dotLp.rightMargin = dp(6);
+            dotLp.rightMargin = dp(6); dotLp.gravity = Gravity.CENTER_VERTICAL;
             dot.setLayoutParams(dotLp);
             row.addView(dot);
 
-            TextView tvLbl = new TextView(this);
-            tvLbl.setText(labels[i]);
-            tvLbl.setTextColor(Color.parseColor("#55FFFFFF"));
-            tvLbl.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
-            tvLbl.setLetterSpacing(0.05f);
-            tvLbl.setLayoutParams(new LinearLayout.LayoutParams(0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-            row.addView(tvLbl);
+            TextView tvL = mono(null, labels[i], sp(1.8f), 0x55FFFFFF, Typeface.NORMAL);
+            tvL.setLetterSpacing(0.05f);
+            tvL.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            row.addView(tvL);
 
-            TextView tvVal = new TextView(this);
-            tvVal.setText(initVals[i]);
-            tvVal.setTextColor(colors[i]);
-            tvVal.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.9f));
-            tvVal.setTypeface(null, Typeface.BOLD);
-            row.addView(tvVal);
-            mLeftVals[i] = tvVal;
+            TextView tvV = mono(null, vals[i], sp(1.9f), cols[i], Typeface.BOLD);
+            row.addView(tvV);
             p.addView(row);
         }
         return p;
     }
 
-    // ── PAGE 1 — PHONE (pixel-accurate from reference images 4&5) ────────
+    // ── PAGE 1 — PHONE ───────────────────────────────────────────────────
 
     private LinearLayout buildPagePhone() {
-        LinearLayout p = new LinearLayout(this);
-        p.setOrientation(LinearLayout.HORIZONTAL);  // 2-column layout like reference
-        p.setPadding(dp(16), dp(34), dp(12), dp(6));
+        LinearLayout p = page();
+        p.setOrientation(LinearLayout.HORIZONTAL);
 
-        // LEFT sub-column: greeting + display + call history
         LinearLayout leftCol = new LinearLayout(this);
         leftCol.setOrientation(LinearLayout.VERTICAL);
         leftCol.setLayoutParams(new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        leftCol.setPadding(0, dp(34), 0, 0);
 
-        String userName = mSession.getUserName() != null
+        String name = mSession.getUserName() != null
                 ? mSession.getUserName().toUpperCase(Locale.US) : "OPERATOR";
+        int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        String greet = h < 12 ? "GOOD MORNING, " : h < 17 ? "GOOD AFTERNOON, " : "GOOD EVENING, ";
+        mono(leftCol, greet + name, sp(1.9f), 0x88FFFFFF, Typeface.BOLD);
+        divider(leftCol);
 
-        makeText(leftCol,
-            (getHour() < 12 ? "GOOD MORNING, " : getHour() < 17 ? "GOOD AFTERNOON, " : "GOOD EVENING, ")
-            + userName, sp(1.9f), Color.parseColor("#88FFFFFF"), Typeface.BOLD);
-
-        addDivider(leftCol);
-
-        // Phone number display box — reference shows big number in a bordered box
-        FrameLayout numBoxFrame = new FrameLayout(this);
-        numBoxFrame.setBackground(rectBorder(Color.parseColor("#050D18"), Color.parseColor("#1A3355"), dp(6), dp(1)));
-        LinearLayout.LayoutParams nbfLp = new LinearLayout.LayoutParams(
+        final StringBuilder dial = new StringBuilder();
+        TextView tvNum = mono(leftCol, "——————————", sp(3.8f), Color.WHITE, Typeface.BOLD);
+        tvNum.setLetterSpacing(0.08f);
+        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        nbfLp.topMargin = dp(6); nbfLp.bottomMargin = dp(6);
-        numBoxFrame.setLayoutParams(nbfLp);
-        numBoxFrame.setPadding(dp(8), dp(6), dp(8), dp(6));
+        nlp.topMargin = dp(4); nlp.bottomMargin = dp(6);
+        tvNum.setLayoutParams(nlp);
+        divider(leftCol);
 
-        LinearLayout numRow = new LinearLayout(this);
-        numRow.setOrientation(LinearLayout.HORIZONTAL);
-        numRow.setGravity(Gravity.CENTER_VERTICAL);
-
-        View numDot = new View(this);
-        android.graphics.drawable.GradientDrawable nDg = new android.graphics.drawable.GradientDrawable();
-        nDg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        nDg.setColor(Color.parseColor("#44FF88"));
-        numDot.setBackground(nDg);
-        LinearLayout.LayoutParams ndLp = new LinearLayout.LayoutParams(dp(6), dp(6));
-        ndLp.rightMargin = dp(8);
-        numDot.setLayoutParams(ndLp);
-        pulseView(numDot);
-        numRow.addView(numDot);
-
-        TextView tvPhoneLabel = new TextView(this);
-        tvPhoneLabel.setText("▶ PHONE");
-        tvPhoneLabel.setTextColor(Color.parseColor("#44FF88"));
-        tvPhoneLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
-        tvPhoneLabel.setLetterSpacing(0.08f);
-        tvPhoneLabel.setLayoutParams(new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        numRow.addView(tvPhoneLabel);
-
-        // Live badge
-        TextView tvLivePh = new TextView(this);
-        tvLivePh.setText("● LIVE");
-        tvLivePh.setBackground(pill(Color.parseColor("#CC2200")));
-        tvLivePh.setTextColor(Color.WHITE);
-        tvLivePh.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.5f));
-        tvLivePh.setPadding(dp(5), dp(2), dp(5), dp(2));
-        pulseView(tvLivePh);
-        numRow.addView(tvLivePh);
-        numBoxFrame.addView(numRow);
-        leftCol.addView(numBoxFrame);
-
-        // Big number display — like reference image showing "0659296346"
-        final StringBuilder dialInput = new StringBuilder();
-        TextView tvBigNum = new TextView(this);
-        tvBigNum.setText("——————————");
-        tvBigNum.setTextColor(Color.WHITE);
-        tvBigNum.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(3.8f));
-        tvBigNum.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        tvBigNum.setLetterSpacing(0.08f);
-        LinearLayout.LayoutParams bnLp = new LinearLayout.LayoutParams(
+        String[] keys = {"1","2","3","4","5","6","7","8","9","*","0","#"};
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        bnLp.topMargin = dp(4); bnLp.bottomMargin = dp(6);
-        tvBigNum.setLayoutParams(bnLp);
-        leftCol.addView(tvBigNum);
-
-        addDivider(leftCol);
-
-        // 3×4 dial grid — red LED style as in reference
-        String[] dialKeys = {"1","2","3","4","5","6","7","8","9","*","0","#"};
-        LinearLayout dialGrid = new LinearLayout(this);
-        dialGrid.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams dglp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        dglp.topMargin = dp(4);
-        dialGrid.setLayoutParams(dglp);
+        glp.topMargin = dp(4);
+        grid.setLayoutParams(glp);
 
         for (int row = 0; row < 4; row++) {
             LinearLayout rowL = new LinearLayout(this);
@@ -534,34 +484,28 @@ public class LandscapeHudActivity extends AppCompatActivity {
                     LinearLayout.LayoutParams.MATCH_PARENT, dp(22));
             rlp.bottomMargin = dp(3);
             rowL.setLayoutParams(rlp);
-
             for (int col = 0; col < 3; col++) {
                 int idx = row * 3 + col;
-                if (idx >= dialKeys.length) break;
-                String key = dialKeys[idx];
+                if (idx >= keys.length) break;
+                String key = keys[idx];
                 TextView btn = new TextView(this);
                 btn.setText(key);
                 btn.setTextColor(Color.parseColor("#CC2200"));
                 btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.5f));
-                btn.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+                btn.setTypeface(sMono, Typeface.BOLD);
                 btn.setGravity(Gravity.CENTER);
                 btn.setBackground(rectBorder(Color.parseColor("#0C0606"), Color.parseColor("#2A0800"), dp(3), dp(1)));
                 btn.setClickable(true); btn.setFocusable(true);
-                LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(0,
-                        LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+                LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
                 blp.rightMargin = col < 2 ? dp(3) : 0;
                 btn.setLayoutParams(blp);
-                btn.setOnClickListener(v -> {
-                    dialInput.append(key);
-                    tvBigNum.setText(dialInput.toString());
-                });
+                btn.setOnClickListener(v -> { click(); dial.append(key); tvNum.setText(dial.toString()); });
                 rowL.addView(btn);
             }
-            dialGrid.addView(rowL);
+            grid.addView(rowL);
         }
-        leftCol.addView(dialGrid);
+        leftCol.addView(grid);
 
-        // CALL + CLEAR row
         LinearLayout actRow = new LinearLayout(this);
         actRow.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams arlp = new LinearLayout.LayoutParams(
@@ -569,219 +513,89 @@ public class LandscapeHudActivity extends AppCompatActivity {
         arlp.topMargin = dp(5);
         actRow.setLayoutParams(arlp);
 
-        TextView btnCall = new TextView(this);
-        btnCall.setText("▶ CALL");
-        btnCall.setTextColor(Color.parseColor("#44FF88"));
-        btnCall.setGravity(Gravity.CENTER);
-        btnCall.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
-        btnCall.setBackground(rectBorder(Color.parseColor("#001A0D"), Color.parseColor("#2299AA"), dp(4), dp(1)));
-        btnCall.setClickable(true); btnCall.setFocusable(true);
-        LinearLayout.LayoutParams bclp = new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-        bclp.rightMargin = dp(6);
-        btnCall.setLayoutParams(bclp);
-        btnCall.setOnClickListener(v -> {
-            String num = dialInput.toString().trim();
-            if (!num.isEmpty()) startActivity(new Intent(Intent.ACTION_DIAL,
-                    android.net.Uri.parse("tel:" + num)));
+        TextView call = new TextView(this); call.setText("▶ CALL");
+        call.setTextColor(Color.parseColor("#44FF88")); call.setGravity(Gravity.CENTER);
+        call.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
+        call.setBackground(rectBorder(Color.parseColor("#001A0D"), Color.parseColor("#2299AA"), dp(4), dp(1)));
+        call.setClickable(true); call.setFocusable(true);
+        LinearLayout.LayoutParams callLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+        callLp.rightMargin = dp(6); call.setLayoutParams(callLp);
+        call.setOnClickListener(v -> {
+            String n = dial.toString().trim();
+            if (!n.isEmpty()) startActivity(new Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + n)));
         });
-        actRow.addView(btnCall);
+        actRow.addView(call);
 
-        TextView btnClear = new TextView(this);
-        btnClear.setText("✕ CLR");
-        btnClear.setTextColor(Color.parseColor("#CC2200"));
-        btnClear.setGravity(Gravity.CENTER);
-        btnClear.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
-        btnClear.setBackground(rectBorder(Color.parseColor("#120000"), Color.parseColor("#331100"), dp(4), dp(1)));
-        btnClear.setClickable(true); btnClear.setFocusable(true);
-        btnClear.setLayoutParams(new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1f));
-        btnClear.setOnClickListener(v -> {
-            dialInput.setLength(0);
-            tvBigNum.setText("——————————");
-        });
-        actRow.addView(btnClear);
+        TextView clr = new TextView(this); clr.setText("✕ CLR");
+        clr.setTextColor(Color.parseColor("#CC2200")); clr.setGravity(Gravity.CENTER);
+        clr.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
+        clr.setBackground(rectBorder(Color.parseColor("#120000"), Color.parseColor("#331100"), dp(4), dp(1)));
+        clr.setClickable(true); clr.setFocusable(true);
+        clr.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        clr.setOnClickListener(v -> { dial.setLength(0); tvNum.setText("——————————"); });
+        actRow.addView(clr);
         leftCol.addView(actRow);
-
         p.addView(leftCol);
         return p;
-    }
-
-    private int getHour() {
-        return Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
     }
 
     // ── PAGE 2 — WIFI ────────────────────────────────────────────────────
 
     private LinearLayout buildPageWifi() {
-        LinearLayout p = new LinearLayout(this);
-        p.setOrientation(LinearLayout.VERTICAL);
-        p.setPadding(dp(18), dp(34), dp(12), dp(6));
+        LinearLayout p = page();
+        String name = mSession.getUserName() != null ? mSession.getUserName().toUpperCase(Locale.US) : "OPERATOR";
+        int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        mono(p, (h<12?"GOOD MORNING, ":h<17?"GOOD AFTERNOON, ":"GOOD EVENING, ") + name, sp(1.9f), 0x88FFFFFF, Typeface.BOLD);
+        divider(p);
 
-        String userName = mSession.getUserName() != null
-                ? mSession.getUserName().toUpperCase(Locale.US) : "OPERATOR";
-        makeText(p,
-            (getHour() < 12 ? "GOOD MORNING, " : getHour() < 17 ? "GOOD AFTERNOON, " : "GOOD EVENING, ")
-            + userName, sp(1.9f), Color.parseColor("#88FFFFFF"), Typeface.BOLD);
-
-        // WIFI header box
-        LinearLayout wifiBox = new LinearLayout(this);
-        wifiBox.setOrientation(LinearLayout.VERTICAL);
-        wifiBox.setBackground(rectBorder(Color.parseColor("#05090F"), Color.parseColor("#1A3355"), dp(7), dp(1)));
-        wifiBox.setPadding(dp(12), dp(8), dp(12), dp(8));
-        LinearLayout.LayoutParams wblp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        wblp.topMargin = dp(7); wblp.bottomMargin = dp(8);
-        wifiBox.setLayoutParams(wblp);
-
-        LinearLayout wHdr = new LinearLayout(this);
-        wHdr.setOrientation(LinearLayout.HORIZONTAL);
-        wHdr.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView tvNum2 = new TextView(this);
-        tvNum2.setText("12");
-        tvNum2.setTextColor(Color.parseColor("#CC2200"));
-        tvNum2.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(3.0f));
-        tvNum2.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        tvNum2.setPadding(0, 0, dp(6), 0);
-        wHdr.addView(tvNum2);
-
-        TextView tvWifiTitle = new TextView(this);
-        tvWifiTitle.setText("WIFI");
-        tvWifiTitle.setTextColor(Color.WHITE);
-        tvWifiTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(4.2f));
-        tvWifiTitle.setTypeface(null, Typeface.BOLD);
-        tvWifiTitle.setLayoutParams(new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        wHdr.addView(tvWifiTitle);
-
-        TextView tvWLive = new TextView(this);
-        tvWLive.setText("● LIVE");
-        tvWLive.setTextColor(Color.WHITE);
-        tvWLive.setBackground(pill(Color.parseColor("#CC2200")));
-        tvWLive.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.6f));
-        tvWLive.setPadding(dp(6), dp(2), dp(6), dp(2));
-        pulseView(tvWLive);
-        wHdr.addView(tvWLive);
-        wifiBox.addView(wHdr);
-
-        // Key=GET row
-        LinearLayout keyRow = new LinearLayout(this);
-        keyRow.setOrientation(LinearLayout.HORIZONTAL);
-        keyRow.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams krlp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        krlp.topMargin = dp(4);
-        keyRow.setLayoutParams(krlp);
-        TextView tvKey = new TextView(this); tvKey.setText("KEY");
-        tvKey.setTextColor(Color.parseColor("#44FFFFFF"));
-        tvKey.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.7f));
-        tvKey.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.3f));
-        keyRow.addView(tvKey);
-        TextView tvKeyVal = new TextView(this); tvKeyVal.setText("+ GET");
-        tvKeyVal.setTextColor(Color.parseColor("#44FF88"));
-        tvKeyVal.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
-        tvKeyVal.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        keyRow.addView(tvKeyVal);
-        wifiBox.addView(keyRow);
-        p.addView(wifiBox);
-
-        // Net stats
-        String[][] netStats = {
-            {"BPS","——"}, {"IP ADDRESS",getLocalIp()},
-            {"GATEWAY","192.168.1.1"}, {"DNS","8.8.8.8 / 8.8.4.4"},
-            {"STRENGTH","████░ 80%"}, {"CHANNEL","6 (2.4GHz)"},
-            {"NPC","——"}, {"REY","——"},
+        String[][] stats = {
+            {"BPS","——"},{" IP",localIp()},{"GW","192.168.1.1"},
+            {"DNS","8.8.8.8 / 8.8.4.4"},{"SIG","████░  80%"},{"CH","6  (2.4GHz)"}
         };
-        for (String[] row : netStats) {
-            LinearLayout sRow = new LinearLayout(this);
-            sRow.setOrientation(LinearLayout.HORIZONTAL);
-            LinearLayout.LayoutParams srlp = new LinearLayout.LayoutParams(
+        for (String[] row : stats) {
+            LinearLayout r = new LinearLayout(this);
+            r.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            srlp.topMargin = dp(3);
-            sRow.setLayoutParams(srlp);
-            TextView tvL = new TextView(this); tvL.setText(row[0]);
-            tvL.setTextColor(Color.parseColor("#44FFFFFF"));
-            tvL.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.7f));
-            tvL.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.45f));
-            sRow.addView(tvL);
-            TextView tvV = new TextView(this); tvV.setText(row[1]);
-            tvV.setTextColor(Color.parseColor("#44FF88"));
-            tvV.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.7f));
-            tvV.setTypeface(Typeface.MONOSPACE);
-            sRow.addView(tvV);
-            p.addView(sRow);
+            rlp.topMargin = dp(4);
+            r.setLayoutParams(rlp);
+            TextView k = mono(null, row[0], sp(1.7f), 0x44FFFFFF, Typeface.NORMAL);
+            k.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.4f));
+            r.addView(k);
+            r.addView(mono(null, row[1], sp(1.7f), Color.parseColor("#44FF88"), Typeface.NORMAL));
+            p.addView(r);
         }
-
-        // TX/RX gauge mini-strip
-        LinearLayout gaugeRow = new LinearLayout(this);
-        gaugeRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams grlp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(28));
-        grlp.topMargin = dp(6);
-        gaugeRow.setLayoutParams(grlp);
-        addGauge(gaugeRow, "TX", "██░░ 40%", "#4488FF");
-        addGauge(gaugeRow, "RX", "███░ 75%", "#44FF88");
-        p.addView(gaugeRow);
         return p;
     }
 
-    private String getLocalIp() {
+    private String localIp() {
         try {
             java.util.Enumeration<java.net.NetworkInterface> en = java.net.NetworkInterface.getNetworkInterfaces();
             while (en.hasMoreElements()) {
-                java.net.NetworkInterface intf = en.nextElement();
-                java.util.Enumeration<java.net.InetAddress> addrs = intf.getInetAddresses();
+                java.util.Enumeration<java.net.InetAddress> addrs = en.nextElement().getInetAddresses();
                 while (addrs.hasMoreElements()) {
-                    java.net.InetAddress addr = addrs.nextElement();
-                    if (!addr.isLoopbackAddress() && addr instanceof java.net.Inet4Address)
-                        return addr.getHostAddress();
+                    java.net.InetAddress a = addrs.nextElement();
+                    if (!a.isLoopbackAddress() && a instanceof java.net.Inet4Address) return a.getHostAddress();
                 }
             }
         } catch (Exception ignored) {}
         return "—";
     }
 
-    private void addGauge(LinearLayout parent, String label, String bar, String color) {
-        LinearLayout cell = new LinearLayout(this);
-        cell.setOrientation(LinearLayout.VERTICAL);
-        cell.setGravity(Gravity.CENTER_HORIZONTAL);
-        cell.setPadding(dp(7), dp(3), dp(7), dp(3));
-        cell.setBackground(rectBorder(Color.parseColor("#0A0F18"), Color.parseColor("#1A3355"), dp(4), dp(1)));
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-        clp.rightMargin = dp(5);
-        cell.setLayoutParams(clp);
-        TextView tvL = new TextView(this); tvL.setText(label);
-        tvL.setTextColor(Color.parseColor("#44FFFFFF")); tvL.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.5f));
-        tvL.setLetterSpacing(0.1f);
-        cell.addView(tvL);
-        TextView tvB = new TextView(this); tvB.setText(bar);
-        tvB.setTextColor(Color.parseColor(color)); tvB.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.6f));
-        tvB.setTypeface(Typeface.MONOSPACE);
-        cell.addView(tvB);
-        parent.addView(cell);
-    }
-
     // ── PAGE 3 — MEMORY ──────────────────────────────────────────────────
 
     private LinearLayout buildPageMemory() {
-        LinearLayout p = new LinearLayout(this);
-        p.setOrientation(LinearLayout.VERTICAL);
-        p.setPadding(dp(18), dp(34), dp(12), dp(6));
-        makeText(p, "WHAT JARVIS KNOWS", sp(2.4f), Color.WHITE, Typeface.BOLD);
-        addDivider(p);
+        LinearLayout p = page();
+        mono(p, "WHAT JARVIS KNOWS", sp(2.4f), Color.WHITE, Typeface.BOLD);
+        divider(p);
         ScrollView sv = new ScrollView(this);
         sv.setVerticalScrollBarEnabled(false);
         sv.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        mMemoryList = new LinearLayout(this);
-        mMemoryList.setOrientation(LinearLayout.VERTICAL);
-        sv.addView(mMemoryList, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        TextView tvPl = new TextView(this); tvPl.setText("Loading memories…");
-        tvPl.setTextColor(Color.parseColor("#44FFFFFF")); tvPl.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.9f));
-        mMemoryList.addView(tvPl);
+        mMemList = new LinearLayout(this);
+        mMemList.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(mMemList);
+        mono(mMemList, "Loading memories…", sp(1.9f), 0x44FFFFFF, Typeface.NORMAL);
         p.addView(sv);
         return p;
     }
@@ -789,22 +603,17 @@ public class LandscapeHudActivity extends AppCompatActivity {
     // ── PAGE 4 — REMINDERS ───────────────────────────────────────────────
 
     private LinearLayout buildPageReminders() {
-        LinearLayout p = new LinearLayout(this);
-        p.setOrientation(LinearLayout.VERTICAL);
-        p.setPadding(dp(18), dp(34), dp(12), dp(6));
-        makeText(p, "UPCOMING REMINDERS", sp(2.4f), Color.WHITE, Typeface.BOLD);
-        addDivider(p);
+        LinearLayout p = page();
+        mono(p, "UPCOMING REMINDERS", sp(2.4f), Color.WHITE, Typeface.BOLD);
+        divider(p);
         ScrollView sv = new ScrollView(this);
         sv.setVerticalScrollBarEnabled(false);
         sv.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        mRemindersList = new LinearLayout(this);
-        mRemindersList.setOrientation(LinearLayout.VERTICAL);
-        sv.addView(mRemindersList, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        TextView tvPl = new TextView(this); tvPl.setText("Loading reminders…");
-        tvPl.setTextColor(Color.parseColor("#44FFFFFF")); tvPl.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.9f));
-        mRemindersList.addView(tvPl);
+        mRemList = new LinearLayout(this);
+        mRemList.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(mRemList);
+        mono(mRemList, "Loading reminders…", sp(1.9f), 0x44FFFFFF, Typeface.NORMAL);
         p.addView(sv);
         return p;
     }
@@ -822,34 +631,29 @@ public class LandscapeHudActivity extends AppCompatActivity {
         barLp.gravity = Gravity.BOTTOM;
         bar.setLayoutParams(barLp);
 
-        View redDot = new View(this);
-        android.graphics.drawable.GradientDrawable rdGd = new android.graphics.drawable.GradientDrawable();
-        rdGd.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        rdGd.setColor(Color.parseColor("#CC2200"));
-        redDot.setBackground(rdGd);
-        LinearLayout.LayoutParams rdLp = new LinearLayout.LayoutParams(dp(7), dp(7));
-        rdLp.rightMargin = dp(7);
-        redDot.setLayoutParams(rdLp);
-        pulseView(redDot);
-        bar.addView(redDot);
+        View dot = oval(Color.parseColor("#CC2200"), dp(7));
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(7), dp(7));
+        dlp.rightMargin = dp(7);
+        dot.setLayoutParams(dlp);
+        pulseView(dot);
+        bar.addView(dot);
 
-        String[] labels = {"STATUS","PHONE","WIFI","MEMORY","REMINDERS"};
-        for (int i = 0; i < labels.length; i++) {
+        for (int i = 0; i < PAGE_LABELS.length; i++) {
             if (i > 0) {
                 TextView sep = new TextView(this);
                 sep.setText("  ·  ");
-                sep.setTextColor(Color.parseColor("#22FFFFFF"));
+                sep.setTextColor(0x22FFFFFF);
                 sep.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.7f));
                 bar.addView(sep);
             }
             final int fi = i;
             TextView tv = new TextView(this);
-            tv.setText(labels[i]);
-            tv.setTextColor(i == 0 ? Color.parseColor("#CC2200") : Color.parseColor("#44FFFFFF"));
+            tv.setText(PAGE_LABELS[i]);
+            tv.setTextColor(i == 0 ? Color.parseColor("#CC2200") : 0x44FFFFFF);
             tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.7f));
             tv.setLetterSpacing(0.1f);
             tv.setClickable(true); tv.setFocusable(true);
-            tv.setOnClickListener(v -> navigateToPage(fi));
+            tv.setOnClickListener(v -> { click(); navigateTo(fi); });
             bar.addView(tv);
         }
 
@@ -857,17 +661,13 @@ public class LandscapeHudActivity extends AppCompatActivity {
         bar.addView(sp, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
         // Mic button
-        View mic = new View(this);
-        android.graphics.drawable.GradientDrawable mGd = new android.graphics.drawable.GradientDrawable();
-        mGd.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        mGd.setColor(Color.parseColor("#CC2200"));
-        mic.setBackground(mGd);
+        View mic = oval(Color.parseColor("#CC2200"), dp(16));
         LinearLayout.LayoutParams mLp = new LinearLayout.LayoutParams(dp(16), dp(16));
         mLp.leftMargin = mLp.rightMargin = dp(8);
         mic.setLayoutParams(mLp);
         pulseView(mic);
         mic.setClickable(true);
-        mic.setOnClickListener(v -> startActivity(new Intent(this, VoiceOverlayActivity.class)));
+        mic.setOnClickListener(v -> { click(); startActivity(new Intent(this, VoiceOverlayActivity.class)); });
         bar.addView(mic);
 
         View sp2 = new View(this);
@@ -875,122 +675,132 @@ public class LandscapeHudActivity extends AppCompatActivity {
 
         mTvPageIndicator = new TextView(this);
         mTvPageIndicator.setText("01 / 05");
-        mTvPageIndicator.setTextColor(Color.parseColor("#44FFFFFF"));
+        mTvPageIndicator.setTextColor(0x44FFFFFF);
         mTvPageIndicator.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
-        mTvPageIndicator.setTypeface(Typeface.MONOSPACE);
+        mTvPageIndicator.setTypeface(sMono);
         bar.addView(mTvPageIndicator);
-
         return bar;
     }
 
     // ── DATA ─────────────────────────────────────────────────────────────
 
     private void loadData() {
-        String url  = mSession.getJarvisUrl();
-        String name = mSession.getUserName();
+        String url = mSession.getJarvisUrl(), name = mSession.getUserName();
         if (url == null || name == null) return;
-
         JarvisClient.fetchMemories(url, name, mem -> runOnUiThread(() -> {
-            if (mLeftVals[0] != null) mLeftVals[0].setText(String.valueOf(mem.length()));
-            if (mMemoryList == null) return;
-            mMemoryList.removeAllViews();
-            if (mem.length() == 0) { addListLine(mMemoryList, "No memories yet."); return; }
+            if (mMemList == null) return;
+            mMemList.removeAllViews();
+            if (mem.length() == 0) { listLine(mMemList, "No memories yet."); return; }
             for (int i = 0; i < Math.min(mem.length(), 10); i++) {
                 try {
                     org.json.JSONObject m = mem.getJSONObject(i);
                     String c = m.optString("content", m.optString("memory", m.optString("text", "")));
-                    if (!c.isEmpty()) addListLine(mMemoryList, "• " + c);
+                    if (!c.isEmpty()) listLine(mMemList, "• " + c);
                 } catch (Exception ignored) {}
             }
         }));
-
         JarvisClient.fetchReminders(url, new JarvisClient.RemindersCallback() {
             @Override public void onSuccess(List<JarvisClient.JarvisReminder> rs) {
                 runOnUiThread(() -> {
-                    if (mLeftVals[3] != null) mLeftVals[3].setText(rs.size() + " SET");
-                    if (mTvMsg != null) mTvMsg.setText("MSG\n" + rs.size());
-                    if (mRemindersList == null) return;
-                    mRemindersList.removeAllViews();
-                    if (rs.isEmpty()) { addListLine(mRemindersList, "No reminders set."); return; }
+                    if (mRemList == null) return;
+                    mRemList.removeAllViews();
+                    if (rs.isEmpty()) { listLine(mRemList, "No reminders set."); return; }
                     for (JarvisClient.JarvisReminder r : rs)
-                        addListLine(mRemindersList, (r.isDue ? "⚡ " : "⏰ ") + r.label);
+                        listLine(mRemList, (r.isDue ? "⚡ " : "⏰ ") + r.label);
                 });
             }
             @Override public void onError(String e) {}
         });
-
         refreshGreeting();
     }
 
-    private void addListLine(LinearLayout container, String text) {
+    private void listLine(LinearLayout c, String txt) {
         TextView tv = new TextView(this);
-        tv.setText(text); tv.setTextColor(Color.parseColor("#CCFFFFFF"));
+        tv.setText(txt); tv.setTextColor(0xCCFFFFFF);
         tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.9f)); tv.setLineSpacing(0, 1.4f);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.bottomMargin = dp(4);
         tv.setLayoutParams(lp);
-        container.addView(tv);
+        c.addView(tv);
     }
 
-    // ── CLOCK + GREETING ─────────────────────────────────────────────────
+    // ── CLOCK ────────────────────────────────────────────────────────────
 
     private void startClock() {
-        mClockHandler.post(new Runnable() {
+        mClockH.post(new Runnable() {
             @Override public void run() {
                 if (mTvClock != null)
                     mTvClock.setText(new SimpleDateFormat("HH:mm", Locale.US).format(new Date()));
                 refreshGreeting();
-                mClockHandler.postDelayed(this, 30_000);
+                mClockH.postDelayed(this, 30_000);
             }
         });
     }
 
     private void refreshGreeting() {
         int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        String greet = h < 12 ? "GOOD MORNING," : h < 17 ? "GOOD AFTERNOON," : h < 21 ? "GOOD EVENING," : "GOOD NIGHT,";
-        if (mTvGreetingLine != null) mTvGreetingLine.setText(greet);
-        if (mTvDateLine != null)
+        String g = h<12?"GOOD MORNING,":h<17?"GOOD AFTERNOON,":h<21?"GOOD EVENING,":"GOOD NIGHT,";
+        if (mTvGreeting  != null) mTvGreeting.setText(g);
+        if (mTvDateLine  != null)
             mTvDateLine.setText(new SimpleDateFormat("dd MMM", Locale.US).format(new Date()).toUpperCase(Locale.US));
-        if (mTvUserNameBig != null) {
+        if (mTvUserName  != null) {
             String n = mSession.getUserName();
-            mTvUserNameBig.setText(n != null ? n.toUpperCase(Locale.US) : "OPERATOR");
+            mTvUserName.setText(n != null ? n.toUpperCase(Locale.US) : "OPERATOR");
         }
     }
 
     // ── HELPERS ──────────────────────────────────────────────────────────
 
-    private TextView makeText(LinearLayout parent, String text, float textSize, int color, int style) {
+    private LinearLayout page() {
+        LinearLayout p = new LinearLayout(this);
+        p.setOrientation(LinearLayout.VERTICAL);
+        p.setPadding(dp(16), dp(34), dp(12), dp(6));
+        return p;
+    }
+
+    private TextView mono(ViewGroup parent, String text, float size, int color, int style) {
         TextView tv = new TextView(this);
-        tv.setText(text); tv.setTextColor(color); tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSize);
-        if (style >= 0) tv.setTypeface(null, style);
-        parent.addView(tv);
+        tv.setText(text); tv.setTextColor(color);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, size);
+        tv.setTypeface(sMono, style);
+        if (parent != null) parent.addView(tv);
         return tv;
     }
 
-    android.graphics.drawable.Drawable pill(int color) {
-        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-        gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-        gd.setCornerRadius(dp(20)); gd.setColor(color);
-        gd.setStroke(dp(1), Color.parseColor("#33FFFFFF"));
-        return gd;
-    }
-
-    android.graphics.drawable.Drawable rectBorder(int fill, int stroke, float radius, int sw) {
-        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-        gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-        gd.setCornerRadius(radius); gd.setColor(fill); gd.setStroke(sw, stroke);
-        return gd;
-    }
-
-    private void addDivider(LinearLayout p) {
+    private void divider(LinearLayout p) {
         View d = new View(this);
-        d.setBackgroundColor(Color.parseColor("#1AFFFFFF"));
+        d.setBackgroundColor(0x1AFFFFFF);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 1);
         lp.topMargin = dp(5); lp.bottomMargin = dp(3);
         d.setLayoutParams(lp);
         p.addView(d);
+    }
+
+    private View oval(int color, int size) {
+        View v = new View(this);
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        gd.setColor(color);
+        v.setBackground(gd);
+        return v;
+    }
+
+    private void oval(View v, int size) {}
+
+    private android.graphics.drawable.Drawable pill(int color) {
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        gd.setCornerRadius(dp(20)); gd.setColor(color);
+        return gd;
+    }
+
+    private android.graphics.drawable.Drawable rectBorder(int fill, int stroke, float r, int sw) {
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        gd.setCornerRadius(r); gd.setColor(fill); gd.setStroke(sw, stroke);
+        return gd;
     }
 
     void pulseView(View v) {
@@ -999,9 +809,29 @@ public class LandscapeHudActivity extends AppCompatActivity {
         a.setRepeatMode(ValueAnimator.REVERSE); a.start();
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // INNER VIEWS
-    // ═══════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════
+    //  SCAN LINE OVERLAY — CRT vibe matching OSO
+    // ═════════════════════════════════════════════════════════════════════
+
+    public static class ScanLineView extends View {
+        private final Paint mP = new Paint();
+        public ScanLineView(android.content.Context c) {
+            super(c);
+            setWillNotDraw(false);
+            setClickable(false);
+            setFocusable(false);
+            mP.setColor(Color.argb(10, 0, 0, 0));
+            mP.setStrokeWidth(1f);
+        }
+        @Override protected void onDraw(Canvas c) {
+            int w = getWidth(), h = getHeight();
+            for (int y = 0; y < h; y += 3) c.drawLine(0, y, w, y, mP);
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  TICK RULER
+    // ═════════════════════════════════════════════════════════════════════
 
     public static class TickRulerView extends View {
         private final Paint mP = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1013,20 +843,23 @@ public class LandscapeHudActivity extends AppCompatActivity {
                     getResources().getDisplayMetrics()));
             int step = 18;
             for (int x = 0; x < w; x += step) {
-                int num = x / step;
-                boolean maj = num % 5 == 0;
-                float th = maj ? h * 0.7f : h * 0.4f;
+                boolean maj = (x / step) % 5 == 0;
+                float th = maj ? h * 0.70f : h * 0.40f;
                 mP.setStyle(Paint.Style.STROKE);
-                mP.setColor(maj ? Color.parseColor("#66FFFFFF") : Color.parseColor("#22FFFFFF"));
+                mP.setColor(maj ? 0x66FFFFFF : 0x22FFFFFF);
                 c.drawLine(x, h, x, h - th, mP);
                 if (maj) {
                     mP.setStyle(Paint.Style.FILL);
-                    mP.setColor(Color.parseColor("#44FFFFFF"));
-                    c.drawText(String.valueOf(num), x, h * 0.25f, mP);
+                    mP.setColor(0x44FFFFFF);
+                    c.drawText(String.valueOf(x / step), x, h * 0.25f, mP);
                 }
             }
         }
     }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  MINI ARC VIEW  — spinning arcs for status page corner
+    // ═════════════════════════════════════════════════════════════════════
 
     public static class MiniArcView extends View {
         private final Paint[] mP = new Paint[3];
@@ -1042,274 +875,162 @@ public class LandscapeHudActivity extends AppCompatActivity {
             for (int i = 0; i < 3; i++) {
                 mP[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
                 mP[i].setStyle(Paint.Style.STROKE); mP[i].setColor(cols[i]);
-                mP[i].setStrokeWidth((2.5f - i * 0.5f) * d);
-                mP[i].setStrokeCap(Paint.Cap.ROUND); mO[i] = new RectF();
-            }
-        }
-        @Override protected void onAttachedToWindow()  { super.onAttachedToWindow();  mRun = true; tick(); }
-        @Override protected void onDetachedFromWindow() { super.onDetachedFromWindow(); mRun = false; mH.removeCallbacksAndMessages(null); }
-        private void tick() {
-            for (int i = 0; i < 3; i++) mA[i] = (mA[i] + mS[i]) % 360f;
-            invalidate(); if (mRun) mH.postDelayed(this::tick, 16);
-        }
-        @Override protected void onDraw(Canvas c) {
-            float cx = getWidth()/2f, cy = getHeight()/2f, min = Math.min(getWidth(),getHeight())/2f;
-            float[] sw = {120f, 80f, 200f};
-            for (int i = 0; i < 3; i++) {
-                float r = min * (0.95f - i * 0.22f);
-                mO[i].set(cx-r, cy-r, cx+r, cy+r);
-                c.drawArc(mO[i], mA[i], sw[i], false, mP[i]);
-            }
-            Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
-            dot.setColor(Color.parseColor("#CC2200"));
-            c.drawCircle(cx, cy, min * 0.15f, dot);
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // SpinningArcView — kept for compatibility with HomeHudActivity
-    // ═══════════════════════════════════════════════════════════════════════
-
-    public static class SpinningArcView extends View {
-        private final Paint[] mP;
-        private final float[] mA  = new float[6];
-        private final float[] mS  = {0.3f, -0.5f, 0.7f, -0.4f, 0.2f, -0.9f};
-        private final RectF[] mO;
-        private float mBlkRot = 0f;
-        private final Handler mH = new Handler(Looper.getMainLooper());
-        private boolean mRun;
-        private static final int[]   COLS = {0x33FFFFFF,0x80CC2200,0x6000CCFF,0xFFFFFFFF,0x40CC2200,0x2200FFAA};
-        private static final float[] WDS  = {2f,3f,1.5f,1f,4f,1f};
-        private static final float[] SWP  = {200f,80f,160f,340f,40f,220f};
-        private static final float[] BLKS = {0f,30f,60f,90f,120f,150f,210f,240f,270f,300f,330f};
-        public SpinningArcView(android.content.Context ctx) {
-            super(ctx); setWillNotDraw(false);
-            mP = new Paint[6]; mO = new RectF[6];
-            float d = ctx.getResources().getDisplayMetrics().density;
-            for (int i = 0; i < 6; i++) {
-                mP[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
-                mP[i].setStyle(Paint.Style.STROKE); mP[i].setColor(COLS[i]);
-                mP[i].setStrokeWidth(WDS[i] * d); mP[i].setStrokeCap(Paint.Cap.ROUND);
+                mP[i].setStrokeWidth((2.5f - i * 0.5f) * d); mP[i].setStrokeCap(Paint.Cap.ROUND);
                 mO[i] = new RectF();
             }
         }
-        @Override protected void onAttachedToWindow()  { super.onAttachedToWindow();  mRun = true; tick(); }
-        @Override protected void onDetachedFromWindow() { super.onDetachedFromWindow(); mRun = false; mH.removeCallbacksAndMessages(null); }
-        private void tick() {
-            for (int i = 0; i < 6; i++) mA[i] = (mA[i] + mS[i]) % 360f;
-            mBlkRot = (mBlkRot + 0.4f) % 360f;
-            invalidate(); if (mRun) mH.postDelayed(this::tick, 16);
-        }
+        @Override protected void onAttachedToWindow()   { super.onAttachedToWindow();  mRun=true;  tick(); }
+        @Override protected void onDetachedFromWindow()  { super.onDetachedFromWindow(); mRun=false; mH.removeCallbacksAndMessages(null); }
+        private void tick() { for(int i=0;i<3;i++) mA[i]=(mA[i]+mS[i])%360f; invalidate(); if(mRun) mH.postDelayed(this::tick,16); }
         @Override protected void onDraw(Canvas c) {
-            int w = getWidth(), h = getHeight(); float cx = w/2f, cy = h/2f, min = Math.min(w,h)/2f;
-            for (int i = 0; i < 6; i++) {
-                float r = min * (0.95f - i * 0.11f);
-                mO[i].set(cx-r, cy-r, cx+r, cy+r);
-                c.drawArc(mO[i], mA[i], SWP[i], false, mP[i]);
-            }
-            Paint bp = new Paint(Paint.ANTI_ALIAS_FLAG); bp.setStyle(Paint.Style.FILL);
-            bp.setColor(Color.parseColor("#334499FF"));
-            float br = min * 0.60f, bs = min * 0.055f;
-            c.save(); c.rotate(mBlkRot, cx, cy);
-            for (float a : BLKS) {
-                double rad = Math.toRadians(a);
-                float bx = cx + (float)(Math.cos(rad)*br) - bs/2f;
-                float by = cy + (float)(Math.sin(rad)*br) - bs/2f;
-                c.drawRect(bx, by, bx+bs, by+bs, bp);
-            }
-            c.restore();
-            Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG); tp.setStrokeWidth(1.5f);
-            float or = min * 0.95f;
-            for (int t = 0; t < 72; t++) {
-                double ang = Math.toRadians(t * 5.0); boolean maj = t % 5 == 0;
-                tp.setColor(maj ? Color.parseColor("#55FFFFFF") : Color.parseColor("#22FFFFFF"));
-                float tl = or * (maj ? 0.05f : 0.025f);
-                c.drawLine(cx+(float)(Math.cos(ang)*(or-tl)), cy+(float)(Math.sin(ang)*(or-tl)),
-                           cx+(float)(Math.cos(ang)*or),      cy+(float)(Math.sin(ang)*or), tp);
-            }
-            Paint op = new Paint(Paint.ANTI_ALIAS_FLAG); op.setStyle(Paint.Style.FILL);
-            op.setColor(Color.parseColor("#08003399")); c.drawCircle(cx, cy, min*0.22f, op);
-            op.setColor(Color.parseColor("#CC2200"));   c.drawCircle(cx, cy, min*0.06f, op);
-            op.setStyle(Paint.Style.STROKE); op.setColor(Color.parseColor("#66FFFFFF")); op.setStrokeWidth(2f);
-            c.drawCircle(cx, cy, min*0.12f, op);
+            float cx=getWidth()/2f, cy=getHeight()/2f, min=Math.min(getWidth(),getHeight())/2f;
+            float[] sw={120f,80f,200f};
+            for(int i=0;i<3;i++){float r=min*(0.95f-i*0.22f);mO[i].set(cx-r,cy-r,cx+r,cy+r);c.drawArc(mO[i],mA[i],sw[i],false,mP[i]);}
+            Paint dot=new Paint(Paint.ANTI_ALIAS_FLAG); dot.setColor(Color.parseColor("#CC2200"));
+            c.drawCircle(cx,cy,min*0.15f,dot);
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // SpinningOrbWheelView — RIGHT PANEL — Iron Man radial wheel (landscape)
-    // Sectors: BRIEF · PHONE · HEALTH · CAMERA · KEY · VAULT · WIFI
-    // ═══════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════
+    //  ORB WHEEL VIEW — right panel radial sector wheel
+    // ═════════════════════════════════════════════════════════════════════
 
-    public static class SpinningOrbWheelView extends View {
-        private static final int   SECTOR_COUNT = 7;
-        private static final float GAP_DEG      = 3f;
-        private static final float SECTOR_DEG   = (360f / SECTOR_COUNT) - GAP_DEG;
+    public static class OrbWheelView extends View {
+        private static final int   N    = 7;
+        private static final float GAP  = 3f;
+        private static final float SDEG = (360f / N) - GAP;
 
         private static final String[] LABELS = {"BRIEF","PHONE","HEALTH","CAMERA","KEY","VAULT","WIFI"};
         private static final String[] ICONS  = {"📋","📞","❤","📷","🔑","🔐","📶"};
-        private static final int[] BASE_COLORS = {
+        private static final int[] COLORS = {
             0xFFCC2200, 0xFF44FF88, 0xFFFF4488, 0xFF4488FF, 0xFFFFD700, 0xFF9945FF, 0xFF00AAFF
         };
 
-        private final Paint[] mSectorFill   = new Paint[SECTOR_COUNT];
-        private final Paint[] mSectorStroke = new Paint[SECTOR_COUNT];
-        private final Paint   mTextP        = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint   mIconP        = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint   mTickP        = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint   mArcP[]       = new Paint[4];
-
-        private final float[] mArcAngles = {0f, 60f, 120f, 180f};
-        private final float[] mArcSpeeds = {0.5f, -0.8f, 0.4f, -0.3f};
-        private float mGlow = 0f, mGlowDir = 1f;
-        private int mSelected = -1;
-
+        private final Paint[] mFill  = new Paint[N];
+        private final Paint[] mStroke= new Paint[N];
+        private final Paint   mTxt   = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint   mIcon  = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint   mTick  = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint[] mArcP  = new Paint[4];
+        private final float[] mArcA  = {0f,60f,120f,180f};
+        private final float[] mArcS  = {0.5f,-0.8f,0.4f,-0.3f};
+        private float mGlow=0f, mGlowDir=1f;
+        private int mSel=-1;
         private final Handler mH = new Handler(Looper.getMainLooper());
         private boolean mRun;
 
         public interface OnSectorClickListener { void onSectorClick(int idx); }
         private OnSectorClickListener mListener;
-        public void setOnSectorClickListener(OnSectorClickListener l) { mListener = l; }
+        public void setOnSectorClickListener(OnSectorClickListener l) { mListener=l; }
 
-        public SpinningOrbWheelView(android.content.Context ctx) {
-            super(ctx);
-            setWillNotDraw(false);
+        public OrbWheelView(android.content.Context ctx) {
+            super(ctx); setWillNotDraw(false);
             float d = ctx.getResources().getDisplayMetrics().density;
-            for (int i = 0; i < SECTOR_COUNT; i++) {
-                mSectorFill[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
-                mSectorFill[i].setStyle(Paint.Style.FILL);
-                int c = BASE_COLORS[i];
-                mSectorFill[i].setColor(Color.argb(25, (c>>16)&0xFF, (c>>8)&0xFF, c&0xFF));
-                mSectorStroke[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
-                mSectorStroke[i].setStyle(Paint.Style.STROKE);
-                mSectorStroke[i].setStrokeWidth(1.8f * d);
-                mSectorStroke[i].setColor(Color.argb(150, (c>>16)&0xFF, (c>>8)&0xFF, c&0xFF));
+            for (int i=0;i<N;i++){
+                int c=COLORS[i],r=(c>>16)&0xFF,g=(c>>8)&0xFF,b=c&0xFF;
+                mFill[i]=new Paint(Paint.ANTI_ALIAS_FLAG); mFill[i].setStyle(Paint.Style.FILL);
+                mFill[i].setColor(Color.argb(25,r,g,b));
+                mStroke[i]=new Paint(Paint.ANTI_ALIAS_FLAG); mStroke[i].setStyle(Paint.Style.STROKE);
+                mStroke[i].setStrokeWidth(1.8f*d); mStroke[i].setColor(Color.argb(150,r,g,b));
             }
-            int[] arcCols = {0x55CC2200, 0x4400CCFF, 0x33FFFFFF, 0x44CC2200};
-            for (int i = 0; i < 4; i++) {
-                mArcP[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
-                mArcP[i].setStyle(Paint.Style.STROKE);
-                mArcP[i].setStrokeWidth((2.2f - i * 0.3f) * d);
-                mArcP[i].setStrokeCap(Paint.Cap.ROUND);
-                mArcP[i].setColor(arcCols[i]);
+            int[] ac={0x55CC2200,0x4400CCFF,0x33FFFFFF,0x44CC2200};
+            for(int i=0;i<4;i++){
+                mArcP[i]=new Paint(Paint.ANTI_ALIAS_FLAG); mArcP[i].setStyle(Paint.Style.STROKE);
+                mArcP[i].setStrokeWidth((2.2f-i*0.3f)*d); mArcP[i].setStrokeCap(Paint.Cap.ROUND);
+                mArcP[i].setColor(ac[i]);
             }
-            mTextP.setTextAlign(Paint.Align.CENTER);
-            mTextP.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.BOLD));
-            mIconP.setTextAlign(Paint.Align.CENTER);
-            mTickP.setStyle(Paint.Style.STROKE); mTickP.setAntiAlias(true);
+            mTxt.setTextAlign(Paint.Align.CENTER);
+            mTxt.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.BOLD));
+            mIcon.setTextAlign(Paint.Align.CENTER);
+            mTick.setStyle(Paint.Style.STROKE); mTick.setAntiAlias(true);
 
-            setOnTouchListener((v, e) -> {
-                if (e.getAction() == MotionEvent.ACTION_UP) {
-                    float cx = getWidth()/2f, cy = getHeight()/2f;
-                    float dx = e.getX()-cx, dy = e.getY()-cy;
-                    double dist = Math.sqrt(dx*dx + dy*dy);
-                    float minR = Math.min(getWidth(), getHeight()) / 2f;
-                    float inner = minR * 0.30f, outer = minR * 0.90f;
-                    if (dist >= inner && dist <= outer) {
-                        double ang = Math.toDegrees(Math.atan2(dy, dx));
-                        float offset = -90f - (SECTOR_DEG/2f + GAP_DEG/2f);
-                        ang = (ang - offset % 360 + 720) % 360;
-                        int sec = (int)(ang / (360f / SECTOR_COUNT));
-                        if (sec >= 0 && sec < SECTOR_COUNT) {
-                            mSelected = sec; invalidate();
-                            if (mListener != null) mListener.onSectorClick(sec);
-                        }
+            setOnTouchListener((v,e)->{
+                if(e.getAction()==MotionEvent.ACTION_UP){
+                    float cx=getWidth()/2f,cy=getHeight()/2f;
+                    float dx=e.getX()-cx,dy=e.getY()-cy;
+                    double dist=Math.sqrt(dx*dx+dy*dy);
+                    float minR=Math.min(getWidth(),getHeight())/2f;
+                    if(dist>=minR*0.30f&&dist<=minR*0.90f){
+                        double ang=Math.toDegrees(Math.atan2(dy,dx));
+                        float off=-90f-(SDEG/2f+GAP/2f);
+                        ang=(ang-off%360+720)%360;
+                        int sec=(int)(ang/(360f/N));
+                        if(sec>=0&&sec<N){mSel=sec;invalidate();if(mListener!=null)mListener.onSectorClick(sec);}
                     }
-                    return true;
                 }
                 return false;
             });
         }
 
-        @Override protected void onAttachedToWindow()  { super.onAttachedToWindow();  mRun = true; tick(); }
-        @Override protected void onDetachedFromWindow() { super.onDetachedFromWindow(); mRun = false; mH.removeCallbacksAndMessages(null); }
-
-        private void tick() {
-            for (int i = 0; i < 4; i++) mArcAngles[i] = (mArcAngles[i] + mArcSpeeds[i]) % 360f;
-            mGlow += mGlowDir * 0.02f;
-            if (mGlow >= 1f) { mGlow=1f; mGlowDir=-1f; } if (mGlow<=0f) { mGlow=0f; mGlowDir=1f; }
-            invalidate(); if (mRun) mH.postDelayed(this::tick, 16);
+        @Override protected void onAttachedToWindow()  { super.onAttachedToWindow();  mRun=true;  tick(); }
+        @Override protected void onDetachedFromWindow() { super.onDetachedFromWindow(); mRun=false; mH.removeCallbacksAndMessages(null); }
+        private void tick(){
+            for(int i=0;i<4;i++) mArcA[i]=(mArcA[i]+mArcS[i])%360f;
+            mGlow+=mGlowDir*0.02f; if(mGlow>=1f){mGlow=1f;mGlowDir=-1f;} if(mGlow<=0f){mGlow=0f;mGlowDir=1f;}
+            invalidate(); if(mRun) mH.postDelayed(this::tick,16);
         }
 
         @Override
         protected void onDraw(Canvas canvas) {
-            float d = getResources().getDisplayMetrics().density;
-            int w = getWidth(), h = getHeight();
-            float cx = w/2f, cy = h/2f;
-            float minR = Math.min(w, h) / 2f;
-            float outerR = minR * 0.90f, innerR = minR * 0.30f;
-            float labelR = minR * 0.66f;
-            float startOff = -90f - (SECTOR_DEG/2f + GAP_DEG/2f);
+            float d=getResources().getDisplayMetrics().density;
+            int w=getWidth(),h=getHeight();
+            float cx=w/2f,cy=h/2f,minR=Math.min(w,h)/2f;
+            float outerR=minR*0.90f,innerR=minR*0.30f,labelR=minR*0.66f;
+            float startOff=-90f-(SDEG/2f+GAP/2f);
 
             // Tick ring
-            for (int t = 0; t < 120; t++) {
-                double ang = Math.toRadians(t * 3.0);
-                boolean maj = t % 5 == 0;
-                mTickP.setColor(maj ? 0x55FFFFFF : 0x22FFFFFF);
-                mTickP.setStrokeWidth((maj ? 1.5f : 0.8f) * d);
-                float ro = outerR, ri = ro - (maj ? minR*0.04f : minR*0.02f);
-                canvas.drawLine(cx+(float)(Math.cos(ang)*ri), cy+(float)(Math.sin(ang)*ri),
-                                cx+(float)(Math.cos(ang)*ro), cy+(float)(Math.sin(ang)*ro), mTickP);
+            for(int t=0;t<120;t++){
+                double ang=Math.toRadians(t*3.0); boolean maj=t%5==0;
+                mTick.setColor(maj?0x55FFFFFF:0x22FFFFFF); mTick.setStrokeWidth((maj?1.5f:0.8f)*d);
+                float ro=outerR,ri=ro-(maj?minR*0.04f:minR*0.02f);
+                canvas.drawLine(cx+(float)(Math.cos(ang)*ri),cy+(float)(Math.sin(ang)*ri),
+                                cx+(float)(Math.cos(ang)*ro),cy+(float)(Math.sin(ang)*ro),mTick);
             }
 
             // Sectors
-            for (int i = 0; i < SECTOR_COUNT; i++) {
-                float startAngle = startOff + i * (SECTOR_DEG + GAP_DEG);
-                boolean sel = (i == mSelected);
-                float rOuter = sel ? outerR + minR*0.04f : outerR;
-
-                Path path = new Path();
-                double a1 = Math.toRadians(startAngle);
-                double a2 = Math.toRadians(startAngle + SECTOR_DEG);
-                path.moveTo(cx+(float)(Math.cos(a1)*rOuter), cy+(float)(Math.sin(a1)*rOuter));
-                RectF sRect = new RectF(cx-rOuter, cy-rOuter, cx+rOuter, cy+rOuter);
-                path.arcTo(sRect, startAngle, SECTOR_DEG, false);
-                path.lineTo(cx+(float)(Math.cos(a2)*innerR), cy+(float)(Math.sin(a2)*innerR));
-                RectF iRect = new RectF(cx-innerR, cy-innerR, cx+innerR, cy+innerR);
-                path.arcTo(iRect, startAngle+SECTOR_DEG, -SECTOR_DEG, false);
+            for(int i=0;i<N;i++){
+                float sa=startOff+i*(SDEG+GAP); boolean sel=(i==mSel);
+                float rO=sel?outerR+minR*0.04f:outerR;
+                Path path=new Path();
+                double a1=Math.toRadians(sa),a2=Math.toRadians(sa+SDEG);
+                path.moveTo(cx+(float)(Math.cos(a1)*rO),cy+(float)(Math.sin(a1)*rO));
+                path.arcTo(new RectF(cx-rO,cy-rO,cx+rO,cy+rO),sa,SDEG,false);
+                path.lineTo(cx+(float)(Math.cos(a2)*innerR),cy+(float)(Math.sin(a2)*innerR));
+                path.arcTo(new RectF(cx-innerR,cy-innerR,cx+innerR,cy+innerR),sa+SDEG,-SDEG,false);
                 path.close();
-
-                int c = BASE_COLORS[i]; int r=(c>>16)&0xFF, g=(c>>8)&0xFF, b=c&0xFF;
-                mSectorFill[i].setColor(Color.argb(sel ? 75 : 22, r, g, b));
-                canvas.drawPath(path, mSectorFill[i]);
-                canvas.drawPath(path, mSectorStroke[i]);
-
-                // Divider
-                mTickP.setColor(0x22FFFFFF); mTickP.setStrokeWidth(0.8f*d);
-                canvas.drawLine(cx+(float)(Math.cos(a1)*innerR), cy+(float)(Math.sin(a1)*innerR),
-                                cx+(float)(Math.cos(a1)*rOuter), cy+(float)(Math.sin(a1)*rOuter), mTickP);
-
-                // Icon + label
-                double midAng = Math.toRadians(startAngle + SECTOR_DEG/2f);
-                float lx = cx + (float)(Math.cos(midAng)*labelR);
-                float ly = cy + (float)(Math.sin(midAng)*labelR);
-                mIconP.setTextSize(minR * 0.08f); mIconP.setColor(BASE_COLORS[i]);
-                canvas.drawText(ICONS[i], lx, ly - minR*0.022f, mIconP);
-                mTextP.setTextSize(minR * 0.048f);
-                mTextP.setColor(sel ? BASE_COLORS[i] : Color.argb(160, 255, 255, 255));
-                canvas.drawText(LABELS[i], lx, ly + minR*0.058f, mTextP);
+                int c=COLORS[i],r=(c>>16)&0xFF,g=(c>>8)&0xFF,b=c&0xFF;
+                mFill[i].setColor(Color.argb(sel?75:22,r,g,b));
+                canvas.drawPath(path,mFill[i]); canvas.drawPath(path,mStroke[i]);
+                // divider line
+                mTick.setColor(0x22FFFFFF); mTick.setStrokeWidth(0.8f*d);
+                canvas.drawLine(cx+(float)(Math.cos(a1)*innerR),cy+(float)(Math.sin(a1)*innerR),
+                                cx+(float)(Math.cos(a1)*rO),cy+(float)(Math.sin(a1)*rO),mTick);
+                // icon + label
+                double midA=Math.toRadians(sa+SDEG/2f);
+                float lx=cx+(float)(Math.cos(midA)*labelR),ly=cy+(float)(Math.sin(midA)*labelR);
+                mIcon.setTextSize(minR*0.08f); mIcon.setColor(COLORS[i]);
+                canvas.drawText(ICONS[i],lx,ly-minR*0.022f,mIcon);
+                mTxt.setTextSize(minR*0.048f);
+                mTxt.setColor(sel?COLORS[i]:Color.argb(160,255,255,255));
+                canvas.drawText(LABELS[i],lx,ly+minR*0.058f,mTxt);
             }
 
             // Inner spinning arcs
-            float[][] arcDefs = {{innerR*0.92f,140f},{innerR*0.76f,80f},{innerR*0.60f,200f},{innerR*0.44f,60f}};
-            for (int i = 0; i < 4; i++) {
-                float ar = arcDefs[i][0];
-                RectF ar2 = new RectF(cx-ar, cy-ar, cx+ar, cy+ar);
-                canvas.drawArc(ar2, mArcAngles[i], arcDefs[i][1], false, mArcP[i]);
-            }
+            float[][] ad={{innerR*0.92f,140f},{innerR*0.76f,80f},{innerR*0.60f,200f},{innerR*0.44f,60f}};
+            for(int i=0;i<4;i++){float ar=ad[i][0];canvas.drawArc(new RectF(cx-ar,cy-ar,cx+ar,cy+ar),mArcA[i],ad[i][1],false,mArcP[i]);}
 
-            // Core
-            Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG); glow.setStyle(Paint.Style.FILL);
-            glow.setColor(Color.argb((int)((0.25f+mGlow*0.25f)*255), 0, 100, 220));
-            canvas.drawCircle(cx, cy, innerR*0.40f, glow);
-            Paint core = new Paint(Paint.ANTI_ALIAS_FLAG); core.setStyle(Paint.Style.FILL);
-            core.setColor(Color.parseColor("#050015"));
-            canvas.drawCircle(cx, cy, innerR*0.32f, core);
-            Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG); ring.setStyle(Paint.Style.STROKE);
-            ring.setStrokeWidth(1.8f*d);
-            ring.setColor(Color.argb((int)(140+mGlow*80), 0, 140, 255));
-            canvas.drawCircle(cx, cy, innerR*0.25f, ring);
-            core.setColor(Color.argb((int)(180+mGlow*60), 204, 34, 0));
-            canvas.drawCircle(cx, cy, innerR*0.07f, core);
+            // Core glow
+            Paint glow=new Paint(Paint.ANTI_ALIAS_FLAG); glow.setStyle(Paint.Style.FILL);
+            RadialGradient rg=new RadialGradient(cx,cy,innerR*0.45f,
+                Color.argb((int)((0.3f+mGlow*0.25f)*255),0,100,220),Color.TRANSPARENT,Shader.TileMode.CLAMP);
+            glow.setShader(rg); canvas.drawCircle(cx,cy,innerR*0.45f,glow);
+            Paint core=new Paint(Paint.ANTI_ALIAS_FLAG); core.setStyle(Paint.Style.FILL);
+            core.setColor(Color.parseColor("#050015")); canvas.drawCircle(cx,cy,innerR*0.32f,core);
+            Paint ring=new Paint(Paint.ANTI_ALIAS_FLAG); ring.setStyle(Paint.Style.STROKE);
+            ring.setStrokeWidth(1.8f*d); ring.setColor(Color.argb((int)(140+mGlow*80),0,140,255));
+            canvas.drawCircle(cx,cy,innerR*0.25f,ring);
+            core.setColor(Color.argb((int)(180+mGlow*60),204,34,0));
+            canvas.drawCircle(cx,cy,innerR*0.07f,core);
         }
     }
 }
