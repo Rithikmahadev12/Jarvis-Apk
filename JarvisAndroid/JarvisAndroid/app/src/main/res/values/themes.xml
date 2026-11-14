@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Main app theme — dark, no action bar -->
+    <!-- Main app theme — dark, no action bar, OSO AugmaOS aesthetic -->
     <style name="Theme.JarvisAssist" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#FFFFFF</item>
-        <item name="colorPrimaryVariant">#CCCCCC</item>
-        <item name="colorOnPrimary">#000000</item>
-        <item name="colorSurface">#0D0D0D</item>
+        <item name="colorPrimary">#00AAFF</item>
+        <item name="colorPrimaryVariant">#0077CC</item>
+        <item name="colorOnPrimary">#020406</item>
+        <item name="colorSurface">#030609</item>
         <item name="colorOnSurface">#FFFFFF</item>
-        <item name="android:windowBackground">#0D0D0D</item>
+        <item name="android:windowBackground">#020406</item>
         <item name="android:statusBarColor">#00000000</item>
         <item name="android:navigationBarColor">#00000000</item>
+        <item name="android:fontFamily">@font/rajdhani_700</item>
     </style>
 
     <!--
@@ -33,5 +34,16 @@
     <style name="OverlayAnim">
         <item name="android:windowEnterAnimation">@android:anim/slide_in_left</item>
         <item name="android:windowExitAnimation">@android:anim/slide_out_right</item>
+    </style>
+
+    <!-- OSO-matched Launcher theme — used by JarvisLauncherActivity -->
+    <style name="Theme.JarvisLauncher" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowBackground">#020406</item>
+        <item name="android:statusBarColor">#00000000</item>
+        <item name="android:navigationBarColor">#00000000</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="colorPrimary">#00AAFF</item>
+        <item name="android:fontFamily">@font/rajdhani_700</item>
     </style>
 </resources>
