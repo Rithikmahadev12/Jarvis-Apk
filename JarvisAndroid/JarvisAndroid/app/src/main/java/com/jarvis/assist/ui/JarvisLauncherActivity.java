@@ -56,4 +56,4 @@ public class JarvisLauncherActivity extends Activity {
         // On a launcher, back button should NOT exit — it goes back to home.
         // No-op to prevent accidental app exit.
     }
-JarvisLauncherActivity
+}
