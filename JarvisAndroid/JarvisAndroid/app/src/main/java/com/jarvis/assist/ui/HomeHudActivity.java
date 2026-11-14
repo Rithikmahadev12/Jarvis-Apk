@@ -1054,7 +1054,7 @@ public class HomeHudActivity extends AppCompatActivity {
             starP.setColor(Color.argb(190, 255, 200, 0));
             starP.setTextSize(maxR*0.055f); starP.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
             canvas.drawText("★★★★★", cx+maxR*0.14f, cy+maxR*0.83f, starP);
-            Paint karaP = new Paint(Paint.ANTI_ALIAS_FLAG);
+            Paint karaP = new Paint(Paint.ANTI_ALIAS_FLAG); // JARVIS brand line paint
             karaP.setColor(Color.argb(110, 180,180,255));
             karaP.setTextSize(maxR*0.046f); karaP.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
             canvas.drawText("JARVIS  ·  CONNECTED", cx+maxR*0.04f, cy+maxR*0.91f, karaP);
