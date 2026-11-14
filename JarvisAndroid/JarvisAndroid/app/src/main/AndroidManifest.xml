@@ -1,17 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  AndroidManifest.xml — JARVIS aOS Edition
-  Target device: Motorola XT2271DL (Moto G Pure, Android 11, API 30)
-  New in this revision:
-    • JarvisLauncherActivity — HOME launcher entry point (matches OSO launcher capability)
-    • VaultLockActivity — secure gate before dashboard (unchanged)
-    • JarvisWallpaperService — live wallpaper like OSO radar background
-    • JarvisAdminReceiver — device admin (force-lock, matches OSO oso_admin.xml)
-    • HOME category on launcher so it replaces default launcher on XT2271DL
+  AndroidManifest.xml — JARVIS App Edition (not a launcher)
+  Target: Motorola XT2271DL (Moto G Pure, Android 11, API 30)
+  Removed vs prior version: HOME category, wallpaper service, device admin receiver
+  VaultLockActivity remains the LAUNCHER entry point (opens from app drawer normally)
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ── Core Permissions ── -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -21,11 +16,6 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-    <!-- Device admin — required for force-lock like OSO -->
-    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" />
-    <!-- Launcher shortcut pinning -->
-    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="true"
@@ -36,34 +26,7 @@
         android:theme="@style/Theme.JarvisAssist"
         android:usesCleartextTraffic="false">
 
-        <!-- ══════════════════════════════════════════════════════════════════
-             LAUNCHER ACTIVITY — HOME category (replaces system launcher)
-             Matches OSO AugmaOS: responds to android.intent.category.HOME
-             Users set Jarvis as default launcher from Settings > Apps > Default Apps
-             On XT2271DL / Moto G Pure this becomes the full home screen.
-             ══════════════════════════════════════════════════════════════════ -->
-        <activity
-            android:name=".ui.JarvisLauncherActivity"
-            android:exported="true"
-            android:theme="@style/Theme.JarvisLauncher"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="stateHidden|adjustNothing"
-            android:launchMode="singleTask"
-            android:taskAffinity=""
-            android:clearTaskOnLaunch="true"
-            android:stateNotNeeded="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.MONKEY" />
-            </intent-filter>
-        </activity>
-
-        <!-- ══════════════════════════════════════════════════════════════════
-             VAULT LOCK — secure gate (unchanged from prior version)
-             Users who deep-link or return from background hit vault first.
-             ══════════════════════════════════════════════════════════════════ -->
+        <!-- VAULT LOCK — launcher entry point (opens from app drawer, not HOME) -->
         <activity
             android:name=".ui.VaultLockActivity"
             android:exported="true"
@@ -76,7 +39,7 @@
             </intent-filter>
         </activity>
 
-        <!-- ── HOME HUD — Iron Man portal home screen ── -->
+        <!-- HOME HUD — OSO-aesthetic radar dial, reached after vault unlock -->
         <activity
             android:name=".ui.HomeHudActivity"
             android:exported="false"
@@ -84,7 +47,7 @@
             android:theme="@style/Theme.JarvisAssist"
             android:windowSoftInputMode="stateHidden|adjustNothing" />
 
-        <!-- ── LANDSCAPE HUD ── -->
+        <!-- LANDSCAPE HUD -->
         <activity
             android:name=".ui.LandscapeHudActivity"
             android:exported="false"
@@ -92,21 +55,21 @@
             android:theme="@style/Theme.JarvisAssist"
             android:windowSoftInputMode="stateHidden|adjustNothing" />
 
-        <!-- ── MAIN DASHBOARD (after vault) ── -->
+        <!-- MAIN DASHBOARD -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="false"
             android:theme="@style/Theme.JarvisAssist"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- ── VOICE OVERLAY ── -->
+        <!-- VOICE OVERLAY -->
         <activity
             android:name=".ui.VoiceOverlayActivity"
             android:exported="false"
             android:theme="@style/Theme.JarvisOverlay"
             android:windowSoftInputMode="stateHidden|adjustNothing" />
 
-        <!-- ── JARVIS ASSIST SERVICE ── -->
+        <!-- JARVIS ACCESSIBILITY SERVICE -->
         <service
             android:name=".JarvisAssistService"
             android:exported="false"
@@ -119,7 +82,7 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- ── BOOT RECEIVER ── -->
+        <!-- BOOT RECEIVER -->
         <receiver
             android:name=".BootReceiver"
             android:exported="false">
@@ -128,42 +91,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- ══════════════════════════════════════════════════════════════════
-             DEVICE ADMIN RECEIVER — matches OSO oso_admin.xml (force-lock)
-             Required to call DevicePolicyManager.lockNow() for vault auto-lock
-             ══════════════════════════════════════════════════════════════════ -->
-        <receiver
-            android:name=".JarvisAdminReceiver"
-            android:exported="true"
-            android:permission="android.permission.BIND_DEVICE_ADMIN">
-            <meta-data
-                android:name="android.app.device_admin"
-                android:resource="@xml/jarvis_admin" />
-            <intent-filter>
-                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ══════════════════════════════════════════════════════════════════
-             LIVE WALLPAPER SERVICE — matches OSO oso_wallpaper.xml
-             JarvisWallpaperService draws the radar/HUD animation as wallpaper
-             ══════════════════════════════════════════════════════════════════ -->
-        <service
-            android:name=".ui.JarvisWallpaperService"
-            android:exported="true"
-            android:permission="android.permission.BIND_WALLPAPER"
-            android:label="@string/jarvis_wallpaper_label">
-            <intent-filter>
-                <action android:name="android.service.wallpaper.WallpaperService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.service.wallpaper"
-                android:resource="@xml/jarvis_wallpaper" />
-        </service>
-
-        <!-- ══════════════════════════════════════════════════════════════════
-             SESSION SERVICE
-             ══════════════════════════════════════════════════════════════════ -->
+        <!-- SESSION SERVICE -->
         <service
             android:name=".JarvisSessionService"
             android:exported="false"
