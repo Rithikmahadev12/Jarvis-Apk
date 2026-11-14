@@ -13,11 +13,7 @@
         <item name="android:fontFamily">@font/rajdhani_700</item>
     </style>
 
-    <!--
-        Overlay theme — translucent window so only the bottom sheet shows.
-        backgroundDimEnabled false because we draw our own scrim view.
-        windowIsFloating false so it fills the screen width at the bottom.
-    -->
+    <!-- Overlay theme — translucent window for voice/bottom sheet -->
     <style name="Theme.JarvisOverlay" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
@@ -30,20 +26,8 @@
         <item name="android:navigationBarColor">#00000000</item>
     </style>
 
-    <!-- Uses built-in Android anims — no custom anim folder needed -->
     <style name="OverlayAnim">
         <item name="android:windowEnterAnimation">@android:anim/slide_in_left</item>
         <item name="android:windowExitAnimation">@android:anim/slide_out_right</item>
-    </style>
-
-    <!-- OSO-matched Launcher theme — used by JarvisLauncherActivity -->
-    <style name="Theme.JarvisLauncher" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="android:windowBackground">#020406</item>
-        <item name="android:statusBarColor">#00000000</item>
-        <item name="android:navigationBarColor">#00000000</item>
-        <item name="android:windowFullscreen">true</item>
-        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-        <item name="colorPrimary">#00AAFF</item>
-        <item name="android:fontFamily">@font/rajdhani_700</item>
     </style>
 </resources>
