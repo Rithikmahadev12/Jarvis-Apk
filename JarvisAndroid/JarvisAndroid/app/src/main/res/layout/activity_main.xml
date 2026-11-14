@@ -40,11 +40,11 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="K.A.R.A"
+                android:text="JARVIS"
                 android:textColor="#CC2200"
                 android:textSize="42sp"
                 android:letterSpacing="0.25"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:layout_marginTop="88dp"
                 android:layout_marginBottom="4dp" />
 
@@ -55,7 +55,7 @@
                 android:textColor="#3300AAFF"
                 android:textSize="10sp"
                 android:letterSpacing="0.20"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:layout_marginBottom="56dp" />
 
             <!-- Separator bar -->
@@ -72,7 +72,7 @@
                 android:textColor="#4400AAFF"
                 android:textSize="10sp"
                 android:letterSpacing="0.18"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:layout_marginBottom="8dp" />
 
             <EditText
@@ -87,7 +87,7 @@
                 android:paddingLeft="16dp"
                 android:paddingRight="16dp"
                 android:textSize="13sp"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:layout_marginBottom="12dp" />
 
             <TextView
@@ -96,7 +96,7 @@
                 android:layout_height="wrap_content"
                 android:textColor="#CC2200"
                 android:textSize="12sp"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:lineSpacingMultiplier="1.4"
                 android:layout_marginBottom="16dp"
                 android:visibility="gone" />
@@ -124,7 +124,7 @@
                     android:backgroundTint="#0D00AAFF"
                     android:textSize="12sp"
                     android:letterSpacing="0.16"
-                    android:fontFamily="monospace" />
+                    android:fontFamily="@font/sharetechmono_400" />
             </FrameLayout>
 
         </LinearLayout>
@@ -153,11 +153,11 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="K.A.R.A"
+                android:text="JARVIS"
                 android:textColor="#CC2200"
                 android:textSize="38sp"
                 android:letterSpacing="0.25"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:layout_marginTop="80dp"
                 android:layout_marginBottom="4dp" />
 
@@ -168,7 +168,7 @@
                 android:textColor="#3300AAFF"
                 android:textSize="10sp"
                 android:letterSpacing="0.20"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:layout_marginBottom="44dp" />
 
             <LinearLayout
@@ -197,7 +197,7 @@
                     android:layout_weight="1" android:background="#0E00AAFF" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:text="  MANUAL  " android:textColor="#2200AAFF"
-                    android:textSize="9sp" android:fontFamily="monospace" android:letterSpacing="0.12" />
+                    android:textSize="9sp" android:fontFamily="@font/sharetechmono_400" android:letterSpacing="0.12" />
                 <View android:layout_width="0dp" android:layout_height="1dp"
                     android:layout_weight="1" android:background="#0E00AAFF" />
             </LinearLayout>
@@ -209,7 +209,7 @@
                 android:textColor="#4400AAFF"
                 android:textSize="10sp"
                 android:letterSpacing="0.18"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:layout_marginBottom="8dp" />
 
             <EditText
@@ -224,7 +224,7 @@
                 android:paddingLeft="16dp"
                 android:paddingRight="16dp"
                 android:textSize="13sp"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:layout_marginBottom="12dp" />
 
             <TextView
@@ -233,7 +233,7 @@
                 android:layout_height="wrap_content"
                 android:textColor="#CC2200"
                 android:textSize="12sp"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:lineSpacingMultiplier="1.4"
                 android:layout_marginBottom="12dp"
                 android:visibility="gone" />
@@ -247,7 +247,7 @@
                 android:backgroundTint="#0D00AAFF"
                 android:textSize="12sp"
                 android:letterSpacing="0.16"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:layout_marginBottom="12dp" />
 
             <Button
@@ -259,7 +259,7 @@
                 android:backgroundTint="#00000000"
                 android:textSize="10sp"
                 android:letterSpacing="0.10"
-                android:fontFamily="monospace" />
+                android:fontFamily="@font/sharetechmono_400" />
 
         </LinearLayout>
     </ScrollView>
@@ -302,7 +302,7 @@
                     android:text="--:--"
                     android:textColor="#FFFFFF"
                     android:textSize="20sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:textStyle="bold" />
 
                 <TextView
@@ -312,7 +312,7 @@
                     android:text="-- ---"
                     android:textColor="#00AAFF"
                     android:textSize="9sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:letterSpacing="0.08" />
             </LinearLayout>
 
@@ -321,10 +321,10 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="K.A.R.A"
+                android:text="JARVIS"
                 android:textColor="#CC2200"
                 android:textSize="20sp"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/rajdhani_700"
                 android:textStyle="bold"
                 android:letterSpacing="0.22"
                 android:gravity="center" />
@@ -342,7 +342,7 @@
                     android:text="SYS ACTIVE"
                     android:textColor="#00AAFF"
                     android:textSize="9sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:letterSpacing="0.10"
                     android:gravity="end" />
 
@@ -366,7 +366,7 @@
                         android:text="ONLINE"
                         android:textColor="#00AAFF"
                         android:textSize="9sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:letterSpacing="0.10" />
                 </LinearLayout>
             </LinearLayout>
@@ -401,7 +401,7 @@
                     android:text="J"
                     android:textColor="#00AAFF"
                     android:textSize="13sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:textStyle="bold" />
             </FrameLayout>
         </LinearLayout>
@@ -432,7 +432,7 @@
                     android:text="31°"
                     android:textColor="#00AAFF"
                     android:textSize="11sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:textStyle="bold" />
             </FrameLayout>
 
@@ -440,10 +440,10 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="K.A.R.A"
+                android:text="JARVIS"
                 android:textColor="#00AAFF"
                 android:textSize="9sp"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:letterSpacing="0.08"
                 android:layout_marginRight="4dp" />
 
@@ -474,7 +474,7 @@
                     android:text="CONNECTED"
                     android:textColor="#00AAFF"
                     android:textSize="9sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:letterSpacing="0.08" />
             </LinearLayout>
 
@@ -504,7 +504,7 @@
                     android:text="LOCAL"
                     android:textColor="#00AAFF"
                     android:textSize="9sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:letterSpacing="0.08" />
             </LinearLayout>
 
@@ -526,10 +526,10 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="KARA INACTIVE"
+                    android:text="JARVIS INACTIVE"
                     android:textColor="#CC2200"
                     android:textSize="9sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:letterSpacing="0.08" />
             </LinearLayout>
 
@@ -541,7 +541,7 @@
                 android:text="0"
                 android:textColor="#FFFFFF"
                 android:textSize="12sp"
-                android:fontFamily="monospace"
+                android:fontFamily="@font/sharetechmono_400"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -586,10 +586,10 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="K.A.R.A  10 NEED YOU · I'VE —"
+                        android:text="JARVIS — STANDING BY"
                         android:textColor="#CC2200"
                         android:textSize="9sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:letterSpacing="0.06" />
 
                     <!-- Health circle score -->
@@ -601,7 +601,7 @@
                         android:text="69"
                         android:textColor="#FFFFFF"
                         android:textSize="12sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:textStyle="bold"
                         android:background="@drawable/avatar_bg" />
                 </LinearLayout>
@@ -614,7 +614,7 @@
                     android:text="GOOD AFTERNOON,"
                     android:textColor="#CCFFFFFF"
                     android:textSize="16sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:letterSpacing="0.04" />
 
                 <!-- Name — large -->
@@ -632,7 +632,7 @@
                         android:text="OPERATOR"
                         android:textColor="#FFFFFF"
                         android:textSize="34sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:textStyle="bold" />
 
                     <!-- Wallet top-right -->
@@ -643,7 +643,7 @@
                         android:text="◎ 0.0000"
                         android:textColor="#00AAFF"
                         android:textSize="12sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:gravity="end" />
                 </LinearLayout>
             </LinearLayout>
@@ -673,7 +673,7 @@
                     android:text="✕ NEXT CLEAR"
                     android:textColor="#00AAFF"
                     android:textSize="11sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:textStyle="bold"
                     android:letterSpacing="0.10" />
 
@@ -683,7 +683,7 @@
                     android:text="AIR QUALITY"
                     android:textColor="#44FFFFFF"
                     android:textSize="9sp"
-                    android:fontFamily="monospace" />
+                    android:fontFamily="@font/sharetechmono_400" />
             </LinearLayout>
 
             <!-- Red gradient progress bar -->
@@ -718,14 +718,14 @@
                         android:text="C  —  SLEEP"
                         android:textColor="#44FFFFFF"
                         android:textSize="8sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="--"
                         android:textColor="#00AAFF"
                         android:textSize="11sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:textStyle="bold" />
                 </LinearLayout>
 
@@ -739,14 +739,14 @@
                         android:text="HEART RATE · LAST 24H"
                         android:textColor="#44FFFFFF"
                         android:textSize="8sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="--"
                         android:textColor="#CC2200"
                         android:textSize="11sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
@@ -785,10 +785,10 @@
                         android:text="🎙" android:textSize="20sp" android:layout_marginBottom="4dp" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="TALK" android:textColor="#CC2200" android:textSize="9sp"
-                        android:fontFamily="monospace" android:textStyle="bold" android:letterSpacing="0.10" />
+                        android:fontFamily="@font/sharetechmono_400" android:textStyle="bold" android:letterSpacing="0.10" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="Speak to Jarvis" android:textColor="#66FFFFFF" android:textSize="7sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <!-- Vault — cyan -->
@@ -806,12 +806,12 @@
                         android:text="🔐" android:textSize="20sp" android:layout_marginBottom="4dp" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="VAULT" android:textColor="#00AAFF" android:textSize="9sp"
-                        android:fontFamily="monospace" android:textStyle="bold" android:letterSpacing="0.10" />
+                        android:fontFamily="@font/sharetechmono_400" android:textStyle="bold" android:letterSpacing="0.10" />
                     <TextView
                         android:id="@+id/tray_vault_badge"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="0 saved" android:textColor="#44FFFFFF" android:textSize="7sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <!-- Wallet — purple/cyan -->
@@ -830,10 +830,10 @@
                         android:layout_marginBottom="4dp" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="WALLET" android:textColor="#00AAFF" android:textSize="9sp"
-                        android:fontFamily="monospace" android:textStyle="bold" android:letterSpacing="0.10" />
+                        android:fontFamily="@font/sharetechmono_400" android:textStyle="bold" android:letterSpacing="0.10" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="Solana" android:textColor="#44FFFFFF" android:textSize="7sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <!-- Memory -->
@@ -851,12 +851,12 @@
                         android:text="🧠" android:textSize="20sp" android:layout_marginBottom="4dp" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="MEMORY" android:textColor="#00AAFF" android:textSize="9sp"
-                        android:fontFamily="monospace" android:textStyle="bold" android:letterSpacing="0.10" />
+                        android:fontFamily="@font/sharetechmono_400" android:textStyle="bold" android:letterSpacing="0.10" />
                     <TextView
                         android:id="@+id/tray_memory_badge"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="0 items" android:textColor="#44FFFFFF" android:textSize="7sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <!-- Reminders -->
@@ -874,12 +874,12 @@
                         android:text="⏰" android:textSize="20sp" android:layout_marginBottom="4dp" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="REMINDERS" android:textColor="#00AAFF" android:textSize="9sp"
-                        android:fontFamily="monospace" android:textStyle="bold" android:letterSpacing="0.10" />
+                        android:fontFamily="@font/sharetechmono_400" android:textStyle="bold" android:letterSpacing="0.10" />
                     <TextView
                         android:id="@+id/tray_reminders_badge"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="0 set" android:textColor="#44FFFFFF" android:textSize="7sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <!-- Todos -->
@@ -897,12 +897,12 @@
                         android:text="📋" android:textSize="20sp" android:layout_marginBottom="4dp" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="TODOS" android:textColor="#00AAFF" android:textSize="9sp"
-                        android:fontFamily="monospace" android:textStyle="bold" android:letterSpacing="0.10" />
+                        android:fontFamily="@font/sharetechmono_400" android:textStyle="bold" android:letterSpacing="0.10" />
                     <TextView
                         android:id="@+id/tray_todos_badge"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="Queue" android:textColor="#44FFFFFF" android:textSize="7sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <!-- Settings -->
@@ -920,10 +920,10 @@
                         android:text="⚙️" android:textSize="20sp" android:layout_marginBottom="4dp" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="SETTINGS" android:textColor="#00AAFF" android:textSize="9sp"
-                        android:fontFamily="monospace" android:textStyle="bold" android:letterSpacing="0.10" />
+                        android:fontFamily="@font/sharetechmono_400" android:textStyle="bold" android:letterSpacing="0.10" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="Account" android:textColor="#44FFFFFF" android:textSize="7sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <!-- HUD Mode — red accent -->
@@ -942,10 +942,10 @@
                         android:layout_marginBottom="4dp" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="HUD" android:textColor="#CC2200" android:textSize="9sp"
-                        android:fontFamily="monospace" android:textStyle="bold" android:letterSpacing="0.10" />
+                        android:fontFamily="@font/sharetechmono_400" android:textStyle="bold" android:letterSpacing="0.10" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="Landscape" android:textColor="#66CC2200" android:textSize="7sp"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
             </LinearLayout>
@@ -988,7 +988,7 @@
                         android:textColor="#4400AAFF"
                         android:textSize="9sp"
                         android:letterSpacing="0.22"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1015,7 +1015,7 @@
                             android:text="🔐  PASSWORDS"
                             android:textColor="#FFFFFF"
                             android:textSize="13sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold"
                             android:letterSpacing="0.08" />
 
@@ -1031,7 +1031,7 @@
                             android:text="0"
                             android:textColor="#00AAFF"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -1062,7 +1062,7 @@
                             android:textColor="#FFFFFF"
                             android:textColorHint="#2200AAFF"
                             android:textSize="12sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:background="@null"
                             android:inputType="text"
                             android:imeOptions="actionSearch"
@@ -1092,7 +1092,7 @@
                                 android:text="All"
                                 android:textColor="#00AAFF"
                                 android:textSize="11sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/sharetechmono_400"
                                 android:background="@drawable/category_pill_selected"
                                 android:layout_marginRight="7dp"
                                 android:clickable="true"
@@ -1108,7 +1108,7 @@
                                 android:text="Social"
                                 android:textColor="#44FFFFFF"
                                 android:textSize="11sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/sharetechmono_400"
                                 android:background="@drawable/pill_dark"
                                 android:layout_marginRight="7dp"
                                 android:clickable="true"
@@ -1124,7 +1124,7 @@
                                 android:text="Finance"
                                 android:textColor="#44FFFFFF"
                                 android:textSize="11sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/sharetechmono_400"
                                 android:background="@drawable/pill_dark"
                                 android:layout_marginRight="7dp"
                                 android:clickable="true"
@@ -1140,7 +1140,7 @@
                                 android:text="Work"
                                 android:textColor="#44FFFFFF"
                                 android:textSize="11sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/sharetechmono_400"
                                 android:background="@drawable/pill_dark"
                                 android:layout_marginRight="7dp"
                                 android:clickable="true"
@@ -1156,7 +1156,7 @@
                                 android:text="Other"
                                 android:textColor="#44FFFFFF"
                                 android:textSize="11sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/sharetechmono_400"
                                 android:background="@drawable/pill_dark"
                                 android:layout_marginRight="4dp"
                                 android:clickable="true"
@@ -1195,7 +1195,7 @@
                             android:text="No passwords saved yet."
                             android:textColor="#2200AAFF"
                             android:textSize="12sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:gravity="center" />
                     </LinearLayout>
 
@@ -1216,7 +1216,7 @@
                             android:text="+"
                             android:textColor="#00AAFF"
                             android:textSize="18sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:layout_marginRight="8dp" />
                         <TextView
                             android:layout_width="wrap_content"
@@ -1224,7 +1224,7 @@
                             android:text="ADD PASSWORD"
                             android:textColor="#00AAFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold"
                             android:letterSpacing="0.10" />
                     </LinearLayout>
@@ -1249,7 +1249,7 @@
                         android:textColor="#449945FF"
                         android:textSize="9sp"
                         android:letterSpacing="0.22"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1276,7 +1276,7 @@
                             android:text="SOLANA WALLET"
                             android:textColor="#FFFFFF"
                             android:textSize="13sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold"
                             android:letterSpacing="0.08" />
                         <TextView
@@ -1285,7 +1285,7 @@
                             android:text="◎ SOL"
                             android:textColor="#9945FF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/sharetechmono_400" />
                     </LinearLayout>
 
                     <TextView
@@ -1295,7 +1295,7 @@
                         android:text="—"
                         android:textColor="#FFFFFF"
                         android:textSize="28sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:layout_marginBottom="4dp" />
 
                     <TextView
@@ -1305,7 +1305,7 @@
                         android:text="$ —"
                         android:textColor="#44FFFFFF"
                         android:textSize="12sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:layout_marginBottom="14dp" />
 
                     <LinearLayout
@@ -1326,7 +1326,7 @@
                             android:text="Not connected"
                             android:textColor="#44FFFFFF"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:singleLine="true"
                             android:ellipsize="middle" />
                         <TextView
@@ -1336,7 +1336,7 @@
                             android:text="COPY"
                             android:textColor="#00AAFF"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold"
                             android:paddingLeft="8dp"
                             android:clickable="true"
@@ -1363,7 +1363,7 @@
                         android:textColor="#4400AAFF"
                         android:textSize="9sp"
                         android:letterSpacing="0.22"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1388,7 +1388,7 @@
                             android:text="WHAT JARVIS KNOWS"
                             android:textColor="#FFFFFF"
                             android:textSize="12sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold"
                             android:letterSpacing="0.08" />
                         <TextView
@@ -1403,7 +1403,7 @@
                             android:text="0"
                             android:textColor="#020406"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -1420,7 +1420,7 @@
                         android:text="Jarvis hasn't learned anything yet.\nTry having a conversation."
                         android:textColor="#2200AAFF"
                         android:textSize="12sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:lineSpacingMultiplier="1.5"
                         android:visibility="gone" />
                 </LinearLayout>
@@ -1444,7 +1444,7 @@
                         android:textColor="#4400AAFF"
                         android:textSize="9sp"
                         android:letterSpacing="0.22"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1469,7 +1469,7 @@
                             android:text="⏰  UPCOMING"
                             android:textColor="#FFFFFF"
                             android:textSize="12sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold"
                             android:letterSpacing="0.08" />
                         <ProgressBar
@@ -1493,7 +1493,7 @@
                         android:text="No reminders set.\nTell Jarvis to remind you of something."
                         android:textColor="#2200AAFF"
                         android:textSize="12sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:lineSpacingMultiplier="1.5"
                         android:visibility="gone" />
                 </LinearLayout>
@@ -1517,7 +1517,7 @@
                         android:textColor="#44CC2200"
                         android:textSize="9sp"
                         android:letterSpacing="0.22"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1542,7 +1542,7 @@
                             android:text="🔄  DAILY HABITS"
                             android:textColor="#FFFFFF"
                             android:textSize="12sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold"
                             android:letterSpacing="0.08" />
                         <TextView
@@ -1557,7 +1557,7 @@
                             android:text="ON TRACK"
                             android:textColor="#020406"
                             android:textSize="9sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold"
                             android:visibility="gone" />
                     </LinearLayout>
@@ -1575,7 +1575,7 @@
                         android:text="No habits tracked yet.\nTell Jarvis to track your daily habits."
                         android:textColor="#2200AAFF"
                         android:textSize="12sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:lineSpacingMultiplier="1.5"
                         android:visibility="gone" />
                 </LinearLayout>
@@ -1599,7 +1599,7 @@
                         android:textColor="#44FFD700"
                         android:textSize="9sp"
                         android:letterSpacing="0.22"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1624,7 +1624,7 @@
                             android:text="📋  JARVIS NIGHT QUEUE"
                             android:textColor="#FFFFFF"
                             android:textSize="12sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold"
                             android:letterSpacing="0.08" />
                         <TextView
@@ -1639,7 +1639,7 @@
                             android:text="0"
                             android:textColor="#FFD700"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -1649,7 +1649,7 @@
                         android:text="Topics Jarvis will work overnight"
                         android:textColor="#2200AAFF"
                         android:textSize="10sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:layout_marginBottom="10dp" />
 
                     <LinearLayout
@@ -1665,7 +1665,7 @@
                         android:text="Research queue is empty.\nTell Jarvis to research something tonight."
                         android:textColor="#2200AAFF"
                         android:textSize="12sp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/sharetechmono_400"
                         android:lineSpacingMultiplier="1.5"
                         android:visibility="gone" />
                 </LinearLayout>
@@ -1689,7 +1689,7 @@
                         android:textColor="#4400AAFF"
                         android:textSize="9sp"
                         android:letterSpacing="0.22"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1711,7 +1711,7 @@
                             android:text="Server"
                             android:textColor="#2200AAFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/sharetechmono_400" />
                         <TextView
                             android:id="@+id/tv_connected_url"
                             android:layout_width="0dp"
@@ -1719,7 +1719,7 @@
                             android:layout_weight="1"
                             android:textColor="#AAFFFFFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:singleLine="true"
                             android:ellipsize="end" />
                     </LinearLayout>
@@ -1734,7 +1734,7 @@
                             android:text="Session"
                             android:textColor="#2200AAFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/sharetechmono_400" />
                         <TextView
                             android:id="@+id/tv_session_id"
                             android:layout_width="0dp"
@@ -1742,7 +1742,7 @@
                             android:layout_weight="1"
                             android:textColor="#2200AAFF"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:singleLine="true"
                             android:ellipsize="end" />
                     </LinearLayout>
@@ -1767,7 +1767,7 @@
                         android:textColor="#44CC2200"
                         android:textSize="9sp"
                         android:letterSpacing="0.22"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="@font/sharetechmono_400" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1794,7 +1794,7 @@
                             android:text="SWITCH ACCOUNT"
                             android:textColor="#FFFFFF"
                             android:textSize="12sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:letterSpacing="0.08" />
                         <TextView
                             android:layout_width="wrap_content"
@@ -1824,7 +1824,7 @@
                             android:text="RESET EVERYTHING"
                             android:textColor="#CC2200"
                             android:textSize="12sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/sharetechmono_400"
                             android:letterSpacing="0.08" />
                         <TextView
                             android:layout_width="wrap_content"
@@ -1878,7 +1878,7 @@
                     android:text="MSG"
                     android:textColor="#99CC2200"
                     android:textSize="8sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:textStyle="bold"
                     android:layout_marginTop="3dp"
                     android:layout_gravity="center" />
@@ -1912,7 +1912,7 @@
                     android:text="SEARCH"
                     android:textColor="#9900AAFF"
                     android:textSize="8sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:textStyle="bold"
                     android:layout_marginTop="3dp"
                     android:layout_gravity="center" />
@@ -1962,7 +1962,7 @@
                     android:text="CAMERA"
                     android:textColor="#99CC2200"
                     android:textSize="8sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:textStyle="bold"
                     android:layout_marginTop="3dp"
                     android:layout_gravity="center" />
@@ -1996,7 +1996,7 @@
                     android:text="VAULT"
                     android:textColor="#9900AAFF"
                     android:textSize="8sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/sharetechmono_400"
                     android:textStyle="bold"
                     android:layout_marginTop="3dp"
                     android:layout_gravity="center" />
