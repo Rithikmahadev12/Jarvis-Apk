@@ -62,10 +62,10 @@ public class HomeHudActivity extends AppCompatActivity {
     private OrientationEventListener mOrientationListener;
     private boolean mInLandscape;
 
-    // OSO AugmaOS font stack — Rajdhani (titles) + ShareTechMono (HUD data)
-    private android.graphics.Typeface mMonoTf;    // ShareTechMono 400 — all HUD data text
-    private android.graphics.Typeface mBrandTf;   // Rajdhani 700    — brand wordmark
-    private android.graphics.Typeface mRajTf;     // Rajdhani 400    — subtitles
+    // OSO AugmaOS font stack
+    private static Typeface mMonoTf;   // ShareTechMono 400 — all HUD data text
+    private static Typeface mBrandTf;  // Rajdhani 700    — brand wordmark
+    private static Typeface mRajTf;    // Rajdhani 400    — subtitles
 
     @Override
     protected void onCreate(Bundle saved) {
@@ -77,13 +77,13 @@ public class HomeHudActivity extends AppCompatActivity {
         mSession = SessionStore.get(this);
         // Load OSO AugmaOS fonts from assets/fonts/
         try {
-            mMonoTf  = android.graphics.Typeface.createFromAsset(getAssets(), "fonts/sharetechmono_400.ttf");
-            mBrandTf = android.graphics.Typeface.createFromAsset(getAssets(), "fonts/rajdhani_700.ttf");
-            mRajTf   = android.graphics.Typeface.createFromAsset(getAssets(), "fonts/rajdhani_400.ttf");
-        } catch (Exception _e) {
-            mMonoTf  = android.graphics.Typeface.MONOSPACE;
-            mBrandTf = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD);
-            mRajTf   = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL);
+            mMonoTf  = Typeface.createFromAsset(getAssets(), "fonts/sharetechmono_400.ttf");
+            mBrandTf = Typeface.createFromAsset(getAssets(), "fonts/rajdhani_700.ttf");
+            mRajTf   = Typeface.createFromAsset(getAssets(), "fonts/rajdhani_400.ttf");
+        } catch (Exception ignored) {
+            mMonoTf  = Typeface.MONOSPACE;
+            mBrandTf = Typeface.create("sans-serif-condensed", Typeface.BOLD);
+            mRajTf   = Typeface.create("sans-serif-condensed", Typeface.NORMAL);
         }
         DisplayMetrics dm = getResources().getDisplayMetrics();
         SD = dm.density;
@@ -143,11 +143,10 @@ public class HomeHudActivity extends AppCompatActivity {
         rootCol.setOrientation(LinearLayout.VERTICAL);
         rootCol.setBackgroundColor(Color.parseColor("#020406"));
 
-        // ── Radar HUD — FULL SCREEN WIDTH, square, NO margins
         DisplayMetrics dm = getResources().getDisplayMetrics();
         int radarSize = dm.widthPixels;
 
-        // FrameLayout: radar + header overlay + greeting overlay + corner bars — all stacked
+        // FrameLayout: radar + header overlay + greeting overlay + corner bars
         FrameLayout topFrame = new FrameLayout(this);
         topFrame.setBackgroundColor(Color.TRANSPARENT);
 
@@ -155,17 +154,17 @@ public class HomeHudActivity extends AppCompatActivity {
         mRadar.setOnLabelClickListener(this::onRadarLabelTapped);
         topFrame.addView(mRadar, new FrameLayout.LayoutParams(radarSize, radarSize));
 
-        // Header overlay — floats on top of radar top edge
+        // Header overlay — floats on top of radar
         topFrame.addView(buildHeaderOverlay(), new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.TOP));
 
-        // Right-side corner HUD bars — bleed into right edge
+        // Right-side corner HUD bars
         topFrame.addView(buildCornerBars(), new FrameLayout.LayoutParams(
             dp(88), ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.TOP | Gravity.END));
 
-        // Greeting card BLEEDS over bottom of radar — not below it
+        // Greeting card bleeds over bottom of radar
         mCard = new GlassCardView(this);
         FrameLayout.LayoutParams cardLp = new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, dp(130),
@@ -175,14 +174,14 @@ public class HomeHudActivity extends AppCompatActivity {
         rootCol.addView(topFrame, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, radarSize));
 
-        // ── Status info bar (311° · K.A.R.A · CONNECTED · LOCAL · JARVIS INACTIVE · 0)
+        // Status info bar
         rootCol.addView(buildStatusInfoBar(), new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        // ── NEXT CLEAR strip
+        // NEXT CLEAR strip
         rootCol.addView(buildNextClearStrip(), buildStripLp());
 
-        // ── Bottom mini orb
+        // Bottom mini orb
         rootCol.addView(buildMiniOrbSection(), buildMiniOrbLp());
 
         // Spacer
@@ -196,13 +195,12 @@ public class HomeHudActivity extends AppCompatActivity {
         setContentView(rootScroll);
     }
 
-    // ── HEADER OVERLAY (floats over radar top — tight like reference)
+    // Header overlay
     private LinearLayout buildHeaderOverlay() {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(10), dp(5), dp(10), 0);
-        // Gradient fade: opaque top, transparent bottom
         android.graphics.drawable.GradientDrawable hdrBg =
             new android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
@@ -219,7 +217,7 @@ public class HomeHudActivity extends AppCompatActivity {
         mTvClock.setText("--:--");
         mTvClock.setTextColor(Color.WHITE);
         mTvClock.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(3.2f));
-        mTvClock.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+        mTvClock.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
         left.addView(mTvClock);
 
         mTvDate = new TextView(this);
@@ -230,12 +228,12 @@ public class HomeHudActivity extends AppCompatActivity {
         left.addView(mTvDate);
         row.addView(left);
 
-        // Center: K.A.R.A brand
+        // Center: JARVIS brand
         TextView tvBrand = new TextView(this);
         tvBrand.setText("JARVIS");
         tvBrand.setTextColor(Color.parseColor("#CC2200"));
         tvBrand.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
-        tvBrand.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+        tvBrand.setTypeface(mBrandTf != null ? mBrandTf : Typeface.DEFAULT_BOLD, Typeface.BOLD);
         tvBrand.setLetterSpacing(0.25f);
         tvBrand.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams brandLp = new LinearLayout.LayoutParams(0,
@@ -282,7 +280,7 @@ public class HomeHudActivity extends AppCompatActivity {
         return row;
     }
 
-    // ── RIGHT SIDE CORNER HUD BARS
+    // Right side corner HUD bars
     private LinearLayout buildCornerBars() {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -297,16 +295,15 @@ public class HomeHudActivity extends AppCompatActivity {
         };
 
         for (String[] b : bars) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout brow = new LinearLayout(this);
+            brow.setOrientation(LinearLayout.HORIZONTAL);
+            brow.setGravity(Gravity.CENTER_VERTICAL);
             LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
             rlp.bottomMargin = dp(4);
-            row.setLayoutParams(rlp);
+            brow.setLayoutParams(rlp);
 
-            // label
             TextView tvL = new TextView(this);
             tvL.setText(b[0]);
             tvL.setTextColor(Color.parseColor("#55FFFFFF"));
@@ -314,9 +311,8 @@ public class HomeHudActivity extends AppCompatActivity {
             tvL.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
             tvL.setWidth(dp(28));
             tvL.setGravity(Gravity.END);
-            row.addView(tvL);
+            brow.addView(tvL);
 
-            // track + fill
             FrameLayout track = new FrameLayout(this);
             android.graphics.drawable.GradientDrawable trackBg =
                 new android.graphics.drawable.GradientDrawable();
@@ -340,26 +336,24 @@ public class HomeHudActivity extends AppCompatActivity {
             fill.setLayoutParams(new FrameLayout.LayoutParams(
                 (int)(dp(32) * frac), ViewGroup.LayoutParams.MATCH_PARENT));
             track.addView(fill);
-            row.addView(track);
+            brow.addView(track);
 
-            // value
             TextView tvV = new TextView(this);
             tvV.setText(b[1]);
             tvV.setTextColor(Color.parseColor(b[2]));
             tvV.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.1f));
-            tvV.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+            tvV.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
             LinearLayout.LayoutParams vlp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             vlp.leftMargin = dp(3);
             tvV.setLayoutParams(vlp);
-            row.addView(tvV);
-
-            col.addView(row);
+            brow.addView(tvV);
+            col.addView(brow);
         }
         return col;
     }
 
-    // ── STATUS INFO BAR (311° K.A.R.A CONNECTED LOCAL | JARVIS INACTIVE 0)
+    // Status info bar
     private LinearLayout buildStatusInfoBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
@@ -367,7 +361,6 @@ public class HomeHudActivity extends AppCompatActivity {
         bar.setBackgroundColor(Color.parseColor("#030609"));
         bar.setPadding(dp(10), dp(5), dp(10), dp(5));
 
-        // Weather chip: 31°
         FrameLayout wChip = new FrameLayout(this);
         android.graphics.drawable.GradientDrawable wcBg =
             new android.graphics.drawable.GradientDrawable();
@@ -381,7 +374,7 @@ public class HomeHudActivity extends AppCompatActivity {
         tvW.setText("311°");
         tvW.setTextColor(Color.parseColor("#CC2200"));
         tvW.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.0f));
-        tvW.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+        tvW.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
         wChip.addView(tvW);
         LinearLayout.LayoutParams wcLp = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -395,19 +388,17 @@ public class HomeHudActivity extends AppCompatActivity {
         addStatusSep(bar);
         addStatusPill(bar, "LOCAL",      "#00CCFF", true);
 
-        // Spacer
-        View sp = new View(this);
-        bar.addView(sp, new LinearLayout.LayoutParams(0,
+        View spacerV = new View(this);
+        bar.addView(spacerV, new LinearLayout.LayoutParams(0,
             LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
         addStatusPill(bar, "JARVIS INACTIVE", "#CC2200", true);
 
-        // Score counter
         TextView tvScore = new TextView(this);
         tvScore.setText("0");
         tvScore.setTextColor(Color.WHITE);
         tvScore.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(2.0f));
-        tvScore.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+        tvScore.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
         LinearLayout.LayoutParams scoreLp = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         scoreLp.leftMargin = dp(6);
@@ -426,16 +417,16 @@ public class HomeHudActivity extends AppCompatActivity {
         pill.setLayoutParams(lp);
 
         if (withDot) {
-            View dot = new View(parent.getContext());
-            android.graphics.drawable.GradientDrawable dg =
+            View pdot = new View(parent.getContext());
+            android.graphics.drawable.GradientDrawable dg2 =
                 new android.graphics.drawable.GradientDrawable();
-            dg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-            dg.setColor(Color.parseColor(colorHex));
-            dot.setBackground(dg);
-            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(4), dp(4));
-            dlp.rightMargin = dp(3);
-            dot.setLayoutParams(dlp);
-            pill.addView(dot);
+            dg2.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            dg2.setColor(Color.parseColor(colorHex));
+            pdot.setBackground(dg2);
+            LinearLayout.LayoutParams dlp2 = new LinearLayout.LayoutParams(dp(4), dp(4));
+            dlp2.rightMargin = dp(3);
+            pdot.setLayoutParams(dlp2);
+            pill.addView(pdot);
         }
 
         TextView tv = new TextView(parent.getContext());
@@ -460,7 +451,7 @@ public class HomeHudActivity extends AppCompatActivity {
         parent.addView(sep);
     }
 
-    // ── NEXT CLEAR strip
+    // NEXT CLEAR strip
     private View buildNextClearStrip() {
         LinearLayout strip = new LinearLayout(this);
         strip.setOrientation(LinearLayout.VERTICAL);
@@ -471,7 +462,6 @@ public class HomeHudActivity extends AppCompatActivity {
         topRow.setOrientation(LinearLayout.HORIZONTAL);
         topRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        // Icon + label
         LinearLayout labelGroup = new LinearLayout(this);
         labelGroup.setOrientation(LinearLayout.HORIZONTAL);
         labelGroup.setGravity(Gravity.CENTER_VERTICAL);
@@ -482,14 +472,14 @@ public class HomeHudActivity extends AppCompatActivity {
         tvIcon.setText("✕ ");
         tvIcon.setTextColor(Color.parseColor("#CC2200"));
         tvIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
-        tvIcon.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+        tvIcon.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
         labelGroup.addView(tvIcon);
 
         TextView tvLabel = new TextView(this);
         tvLabel.setText("NEXT CLEAR");
         tvLabel.setTextColor(Color.parseColor("#00CCFF"));
         tvLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.9f));
-        tvLabel.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+        tvLabel.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
         tvLabel.setLetterSpacing(0.1f);
         labelGroup.addView(tvLabel);
         topRow.addView(labelGroup);
@@ -502,7 +492,6 @@ public class HomeHudActivity extends AppCompatActivity {
         topRow.addView(tvSub);
         strip.addView(topRow);
 
-        // Red bar
         View redBar = new View(this);
         android.graphics.drawable.GradientDrawable rbBg =
             new android.graphics.drawable.GradientDrawable(
@@ -515,7 +504,6 @@ public class HomeHudActivity extends AppCompatActivity {
         redBar.setLayoutParams(rbLp);
         strip.addView(redBar);
 
-        // Cyan bar
         View cyanBar = new View(this);
         android.graphics.drawable.GradientDrawable cbBg =
             new android.graphics.drawable.GradientDrawable(
@@ -528,7 +516,6 @@ public class HomeHudActivity extends AppCompatActivity {
         cyanBar.setLayoutParams(cbLp);
         strip.addView(cyanBar);
 
-        // Metric row
         LinearLayout dataRow = new LinearLayout(this);
         dataRow.setOrientation(LinearLayout.HORIZONTAL);
         dataRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -552,12 +539,12 @@ public class HomeHudActivity extends AppCompatActivity {
         tvV.setText(val);
         tvV.setTextColor(Color.parseColor(color));
         tvV.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.7f));
-        tvV.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+        tvV.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
         chip.addView(tvV);
         parent.addView(chip);
     }
 
-    // ── MINI ORB SECTION (bottom — orb + action row)
+    // Mini orb section (bottom)
     private View buildMiniOrbSection() {
         LinearLayout section = new LinearLayout(this);
         section.setOrientation(LinearLayout.VERTICAL);
@@ -571,13 +558,12 @@ public class HomeHudActivity extends AppCompatActivity {
         orbLp.gravity = Gravity.CENTER_HORIZONTAL;
         section.addView(orb, orbLp);
 
-        // Action bar
         section.addView(buildActionBar(), new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         return section;
     }
 
-    // ── BOTTOM ACTION BAR (MSG | big MIC button | SEARCH | CAMERA | VAULT)
+    // Bottom action bar
     private View buildActionBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
@@ -587,7 +573,6 @@ public class HomeHudActivity extends AppCompatActivity {
 
         String[][] actions = {{"MSG","#CC2200"},{"SEARCH","#00CCFF"},{"CAMERA","#CC2200"},{"VAULT","#00CCFF"}};
 
-        // 10% percentage label — bottom left (matches reference image)
         LinearLayout pctBox = new LinearLayout(this);
         pctBox.setOrientation(LinearLayout.VERTICAL);
         pctBox.setGravity(Gravity.CENTER_VERTICAL | Gravity.CENTER_HORIZONTAL);
@@ -600,12 +585,12 @@ public class HomeHudActivity extends AppCompatActivity {
         tvPct.setText("10%");
         tvPct.setTextColor(Color.parseColor("#00CCFF"));
         tvPct.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.8f));
-        tvPct.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+        tvPct.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
         pctBox.addView(tvPct);
         bar.addView(pctBox);
 
-        // Left two buttons
         addActionBtn(bar, actions[0]);
+
         // Center big mic button
         FrameLayout micFrame = new FrameLayout(this);
         View micCircle = new View(this);
@@ -672,7 +657,7 @@ public class HomeHudActivity extends AppCompatActivity {
         tvL.setText(item[0]);
         tvL.setTextColor(Color.argb(160, cr, cg, cb));
         tvL.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(1.3f));
-        tvL.setTypeface(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
+        tvL.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD);
         tvL.setGravity(Gravity.CENTER);
         tvL.setLetterSpacing(0.06f);
         LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
@@ -779,7 +764,7 @@ public class HomeHudActivity extends AppCompatActivity {
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    //  RADAR HUD VIEW — full-bleed, reference-accurate
+    //  RADAR HUD VIEW — full-bleed, OSO-accurate
     // ═════════════════════════════════════════════════════════════════════
 
     public static class RadarHudView extends View {
@@ -833,7 +818,6 @@ public class HomeHudActivity extends AppCompatActivity {
             mGlowP.setStyle(Paint.Style.FILL); mGlowP.setAntiAlias(true);
             mDotP.setStyle(Paint.Style.FILL); mDotP.setAntiAlias(true);
 
-            // arc 0,4 = red; 1 = cyan; 2 = white-dim; 3 = cyan-dim
             int[] arcCols = {0x88CC2200, 0x6600CCFF, 0x33FFFFFF, 0x2200CCFF, 0x66CC2200};
             float[] arcWds = {3f, 2f, 1.5f, 1.8f, 2.5f};
             for (int i = 0; i < 5; i++) {
@@ -939,7 +923,6 @@ public class HomeHudActivity extends AppCompatActivity {
                 double ang = Math.toRadians(mDotAngles[i]);
                 float dx = cx + (float)(Math.cos(ang)*dotRingR[i]);
                 float dy = cy + (float)(Math.sin(ang)*dotRingR[i]);
-                // glow halo
                 RadialGradient dotGlow = new RadialGradient(dx, dy, 10*d,
                     dotCols[i], Color.TRANSPARENT, Shader.TileMode.CLAMP);
                 mGlowP.setShader(dotGlow);
@@ -949,15 +932,13 @@ public class HomeHudActivity extends AppCompatActivity {
                 canvas.drawCircle(dx, dy, 4f*d, mDotP);
             }
 
-            // ── VORTEX CENTER — the KEY thing: massive red glow
+            // Vortex center
             float vortexR = maxR * 0.22f;
-            // Deep void
             Paint voidP = new Paint(Paint.ANTI_ALIAS_FLAG);
             voidP.setStyle(Paint.Style.FILL);
             voidP.setColor(Color.parseColor("#010308"));
             canvas.drawCircle(cx, cy, vortexR, voidP);
 
-            // MASSIVE red radial glow — fills inner ~40% of radar
             RadialGradient redGlow = new RadialGradient(cx, cy, maxR * 0.45f,
                 new int[]{
                     Color.argb((int)(180+mGlow*60), 204, 34, 0),
@@ -972,7 +953,6 @@ public class HomeHudActivity extends AppCompatActivity {
             canvas.drawCircle(cx, cy, maxR * 0.45f, mGlowP);
             mGlowP.setShader(null);
 
-            // Secondary blue/cyan glow ring (subtle, outer)
             RadialGradient blueGlow = new RadialGradient(cx, cy, maxR * 0.30f,
                 Color.argb((int)(30+mGlow*20), 20, 80, 200), Color.TRANSPARENT, Shader.TileMode.CLAMP);
             mGlowP.setShader(blueGlow);
@@ -1003,7 +983,7 @@ public class HomeHudActivity extends AppCompatActivity {
             mDotP.setColor(Color.argb((int)(200+mGlow*55), 204,34,0));
             canvas.drawCircle(cx, cy, maxR*0.022f, mDotP);
 
-            // ── Label chips
+            // Label chips
             mTextP.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
             for (int i = 0; i < LABEL_DEFS.length; i++) {
                 String label = (String) LABEL_DEFS[i][0];
@@ -1035,7 +1015,6 @@ public class HomeHudActivity extends AppCompatActivity {
                 mTextP.setTextAlign(Paint.Align.CENTER);
                 canvas.drawText(label, lx, ly+th*0.35f, mTextP);
 
-                // Connector line
                 mTickP.setColor(Color.argb(55, cr, cg, cb)); mTickP.setStrokeWidth(0.9f*d);
                 float nearR = maxR * getNearestRing(radFrac);
                 float ex = cx+(float)(Math.cos(ang)*nearR), ey = cy+(float)(Math.sin(ang)*nearR);
@@ -1049,15 +1028,15 @@ public class HomeHudActivity extends AppCompatActivity {
             float wX = cx - maxR*0.62f, wY = cy + maxR*0.73f;
             drawWeatherChip(canvas, wX, wY, maxR, d);
 
-            // K.A.R.A stars + connected text
+            // JARVIS brand line
             Paint starP = new Paint(Paint.ANTI_ALIAS_FLAG);
             starP.setColor(Color.argb(190, 255, 200, 0));
             starP.setTextSize(maxR*0.055f); starP.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
             canvas.drawText("★★★★★", cx+maxR*0.14f, cy+maxR*0.83f, starP);
-            Paint karaP = new Paint(Paint.ANTI_ALIAS_FLAG); // JARVIS brand line paint
-            karaP.setColor(Color.argb(110, 180,180,255));
-            karaP.setTextSize(maxR*0.046f); karaP.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
-            canvas.drawText("JARVIS  ·  CONNECTED", cx+maxR*0.04f, cy+maxR*0.91f, karaP);
+            Paint brandLineP = new Paint(Paint.ANTI_ALIAS_FLAG);
+            brandLineP.setColor(Color.argb(110, 180,180,255));
+            brandLineP.setTextSize(maxR*0.046f); brandLineP.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
+            canvas.drawText("JARVIS  ·  CONNECTED", cx+maxR*0.04f, cy+maxR*0.91f, brandLineP);
         }
 
         private float getNearestRing(float f) {
@@ -1076,7 +1055,7 @@ public class HomeHudActivity extends AppCompatActivity {
             c.drawRoundRect(r, dp2(7,d), dp2(7,d), p);
             p.setStyle(Paint.Style.FILL); p.setTextAlign(Paint.Align.CENTER);
             p.setColor(Color.argb(230,100,200,255)); p.setTextSize(maxR*0.082f);
-            p.setTypeface(Typeface.create(mMonoTf != null ? mMonoTf : mMonoTf != null ? mMonoTf : Typeface.MONOSPACE, Typeface.BOLD));
+            p.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
             c.drawText("29°", x, y+maxR*0.042f, p);
         }
 
@@ -1085,8 +1064,7 @@ public class HomeHudActivity extends AppCompatActivity {
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    //  GLASS CARD VIEW — greeting BLEEDS over radar bottom
-    //  Transparent top half → opaque dark bottom half
+    //  GLASS CARD VIEW — greeting bleeds over radar bottom
     // ═════════════════════════════════════════════════════════════════════
 
     static class GlassCardView extends View {
@@ -1095,7 +1073,7 @@ public class HomeHudActivity extends AppCompatActivity {
         private final Paint mNameP = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint mSubP  = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint mWalP  = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint mKaraP = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint mTagP  = new Paint(Paint.ANTI_ALIAS_FLAG);  // JARVIS tag line
         private final RectF mRect  = new RectF();
         private float d;
         private String mGreeting = "GOOD AFTERNOON,", mName = "OPERATOR",
@@ -1107,12 +1085,10 @@ public class HomeHudActivity extends AppCompatActivity {
         GlassCardView(android.content.Context ctx) {
             super(ctx); setWillNotDraw(false);
             d = ctx.getResources().getDisplayMetrics().density;
-            // gradient: transparent top → dark bottom
             mBgP.setStyle(Paint.Style.FILL);
             mBigP.setColor(Color.argb(175, 220,245,255));
             mBigP.setTypeface(Typeface.DEFAULT_BOLD);
             mBigP.setLetterSpacing(0.01f);
-            // Name uses a much bigger text size
             mNameP.setColor(Color.WHITE);
             mNameP.setTypeface(Typeface.DEFAULT_BOLD);
             mNameP.setLetterSpacing(0.02f);
@@ -1121,8 +1097,8 @@ public class HomeHudActivity extends AppCompatActivity {
             mSubP.setLetterSpacing(0.06f);
             mWalP.setColor(Color.parseColor("#00CCFF"));
             mWalP.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
-            mKaraP.setColor(Color.parseColor("#CC2200"));
-            mKaraP.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
+            mTagP.setColor(Color.parseColor("#CC2200"));
+            mTagP.setTypeface(mMonoTf != null ? mMonoTf : Typeface.MONOSPACE);
         }
 
         void setNameAndGreeting(String name, String greeting) { mName=name; mGreeting=greeting; invalidate(); }
@@ -1143,7 +1119,6 @@ public class HomeHudActivity extends AppCompatActivity {
         protected void onDraw(Canvas canvas) {
             int w=getWidth(), h=getHeight();
 
-            // Gradient background: transparent top → dark bottom
             LinearGradient bgGrad = new LinearGradient(0, 0, 0, h,
                 Color.TRANSPARENT, Color.parseColor("#EE020406"),
                 Shader.TileMode.CLAMP);
@@ -1154,34 +1129,29 @@ public class HomeHudActivity extends AppCompatActivity {
             float tl = Math.round(14 * d);
             float midY = h * 0.42f;
 
-            // K.A.R.A tag line
-            mKaraP.setTextSize(h * 0.11f);
-            mKaraP.setLetterSpacing(0.08f);
-            // Dot indicator
+            // JARVIS tag line
+            mTagP.setTextSize(h * 0.11f);
+            mTagP.setLetterSpacing(0.08f);
             Paint dotP = new Paint(Paint.ANTI_ALIAS_FLAG);
             dotP.setStyle(Paint.Style.FILL);
             dotP.setColor(Color.parseColor("#CC2200"));
             canvas.drawCircle(tl - d*2, midY - h*0.14f, 4*d, dotP);
-            canvas.drawText("JARVIS — STANDING BY", tl + Math.round(6 * d), midY - h*0.09f, mKaraP);
+            canvas.drawText("JARVIS — STANDING BY", tl + Math.round(6 * d), midY - h*0.09f, mTagP);
 
-            // Greeting line (small, dimmer)
             mBigP.setTextSize(h * 0.21f);
             canvas.drawText(mGreeting, tl, midY + h*0.07f, mBigP);
 
-            // NAME — massive, 3× bigger than greeting
             mNameP.setTextSize(h * 0.52f);
             canvas.drawText(mName, tl, midY + h*0.06f + h*0.52f, mNameP);
 
-            // Sub text
             mSubP.setTextSize(h * 0.12f);
             canvas.drawText(mSub, tl, h - Math.round(6 * d), mSubP);
 
-            // Wallet — top right
             mWalP.setTextSize(h * 0.16f);
             mWalP.setTextAlign(Paint.Align.RIGHT);
             canvas.drawText(mWallet, w - tl, midY + h*0.05f, mWalP);
 
-            // Health circle — right side
+            // Health circle
             float cr2 = h * 0.16f;
             float ccx = w - tl*1.4f - cr2;
             float ccy = midY + h*0.06f + h*0.28f;
@@ -1341,31 +1311,26 @@ public class HomeHudActivity extends AppCompatActivity {
             float d=getResources().getDisplayMetrics().density;
             mHits.clear();
 
-            // Rings
             float[] rings={0.90f,0.70f,0.50f};
             for(float r:rings){
                 mP.setColor(Color.argb(45,0,150,255)); mP.setStrokeWidth(1.2f*d);
                 canvas.drawCircle(cx,cy,maxR*r,mP);
             }
 
-            // Spinning arc
             RectF ar=new RectF(cx-maxR*0.90f,cy-maxR*0.90f,cx+maxR*0.90f,cy+maxR*0.90f);
             canvas.drawArc(ar,mRot,120f,false,mArcP);
 
-            // Red glow center
             RadialGradient rg=new RadialGradient(cx,cy,maxR*0.38f,
                 Color.argb((int)(120+mGlow*60),0,204,255),Color.TRANSPARENT,Shader.TileMode.CLAMP);
             mGlowP.setShader(rg);
             canvas.drawCircle(cx,cy,maxR*0.38f,mGlowP);
             mGlowP.setShader(null);
 
-            // Center
             mDotP.setColor(Color.parseColor("#010308"));
             canvas.drawCircle(cx,cy,maxR*0.18f,mDotP);
             mDotP.setColor(Color.argb((int)(180+mGlow*75),0,204,255));
             canvas.drawCircle(cx,cy,maxR*0.065f,mDotP);
 
-            // Labels
             mTxtP.setTextSize(maxR*0.105f);
             for(int i=0;i<MINI_LABELS.length;i++){
                 String lbl=(String)MINI_LABELS[i][0];
