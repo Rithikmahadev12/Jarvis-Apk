@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">Jarvis</string>
     <string name="accessibility_service_description">Lets Jarvis navigate your phone\'s apps on voice command.</string>
+    <string name="jarvis_wallpaper_label">Jarvis Live Wallpaper</string>
+    <string name="jarvis_wallpaper_description">Jarvis HUD radar animation as your live wallpaper</string>
 </resources>
